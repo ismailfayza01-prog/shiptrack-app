@@ -836,7 +836,7 @@ function doGet(e) {
     return handleGetMyAssignments(auth);
   }
 
-  if (path === 'relay-shipments' && auth.role === ROLES.RELAY) {
+  if (path === 'relay-shipments') {
     return handleGetRelayShipments(auth);
   }
     
@@ -1592,7 +1592,7 @@ function handleGetMyAssignments(auth) {
  * Get relay shipments in possession (RELAY)
  */
 function handleGetRelayShipments(auth) {
-  if (!checkRole(auth, [ROLES.RELAY])) {
+  if (!checkRole(auth, [ROLES.RELAY, ROLES.ADMIN])) {
     return jsonResponse({ error: 'Forbidden' }, 403);
   }
 
@@ -1600,6 +1600,7 @@ function handleGetRelayShipments(auth) {
   const shipmentsSheet = ss.getSheetByName(TABS.SHIPMENTS);
   const shipmentsData = shipmentsSheet.getDataRange().getValues();
   const relayLocation = getUserAddress(ss, auth.user_id);
+  const includeAll = auth.role === ROLES.ADMIN;
 
   const shipments = [];
 
@@ -1612,7 +1613,7 @@ function handleGetRelayShipments(auth) {
     const handlerUserId = shipmentsData[i][38];
     const handlerRole = shipmentsData[i][39];
     const handlerLocation = shipmentsData[i][40];
-    const matchesRelay = idsEqual(handlerUserId, auth.user_id) ||
+    const matchesRelay = includeAll || idsEqual(handlerUserId, auth.user_id) ||
       (handlerRole === ROLES.RELAY && relayLocation && handlerLocation === relayLocation);
 
     if (!matchesRelay) {
