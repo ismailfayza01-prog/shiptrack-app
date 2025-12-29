@@ -60,6 +60,7 @@
             </div>
 
             <button onclick="markInbound()" class="btn btn-primary btn-block btn-lg">Mark As Received</button>
+            <button type="button" class="btn btn-outline btn-block" style="margin-top: 0.75rem;" onclick="openBulkScanner()">Bulk Scan Inbound</button>
           </div>
 
           <!-- Release Package -->
@@ -94,6 +95,32 @@
           </div>
         </div>
 
+        <div id="bulk-scan-panel" class="card" style="display: none; margin-top: 2rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3 style="margin: 0;">Bulk Scan Inbound</h3>
+            <button type="button" class="btn btn-sm btn-outline" onclick="closeBulkScanner()">Close</button>
+          </div>
+          <p style="margin-top: 0; color: var(--gray-600);">Scan multiple shipment QR codes. When done, mark all scanned shipments as available at this relay.</p>
+
+          <div class="form-group">
+            <label class="form-label">Bin Assignment (applies to all scans)</label>
+            <input type="text" id="bulk-bin" class="form-control" placeholder="A-12">
+          </div>
+
+          <div id="bulk-qr-reader" style="width: 100%;"></div>
+          <p class="form-help" style="margin-top: 0.75rem;">Point your camera at each shipment QR code.</p>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin: 1rem 0;">
+            <strong>Scanned items: <span id="bulk-scan-count">0</span></strong>
+            <div style="display: flex; gap: 0.5rem;">
+              <button type="button" class="btn btn-outline btn-sm" onclick="clearBulkScans()">Clear List</button>
+              <button type="button" class="btn btn-primary btn-sm" onclick="processBulkScans()">Mark Scanned as Received</button>
+            </div>
+          </div>
+
+          <div id="bulk-scan-list">No scans yet.</div>
+        </div>
+
         <div class="card" style="margin-top: 2rem;">
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
             <h3 style="margin: 0;">My Relay Inventory</h3>
@@ -105,9 +132,14 @@
     </section>
   </main>
 
+  <script src="vendor/html5-qrcode.min.js"></script>
   <script src="app.js"></script>
   <script src="ui.js"></script>
   <script>
+    let bulkScanner = null;
+    let bulkScannerRunning = false;
+    const bulkScanItems = new Map();
+
     document.addEventListener('DOMContentLoaded', function() {
       if (window.ShipTrack.isAuthenticated()) {
         const user = window.ShipTrack.getCurrentUser();
@@ -240,6 +272,187 @@
         hideLoading();
         showError(error.message);
       }
+    }
+
+    function openBulkScanner() {
+      const panel = document.getElementById('bulk-scan-panel');
+      if (!panel) {
+        showError('Scanner not available');
+        return;
+      }
+
+      panel.style.display = 'block';
+      if (!window.Html5Qrcode) {
+        showError('Scanner library failed to load.');
+        return;
+      }
+
+      if (!bulkScanner) {
+        bulkScanner = new Html5Qrcode('bulk-qr-reader');
+      }
+
+      if (bulkScannerRunning) {
+        return;
+      }
+
+      bulkScannerRunning = true;
+      bulkScanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 240, height: 240 } },
+        (decodedText) => {
+          handleBulkScan(decodedText);
+        },
+        () => {}
+      ).catch((error) => {
+        bulkScannerRunning = false;
+        showError(error.message || 'Unable to start camera');
+      });
+    }
+
+    function closeBulkScanner() {
+      const panel = document.getElementById('bulk-scan-panel');
+      if (panel) {
+        panel.style.display = 'none';
+      }
+
+      if (bulkScanner && bulkScannerRunning) {
+        bulkScanner.stop().then(() => {
+          bulkScannerRunning = false;
+        }).catch(() => {
+          bulkScannerRunning = false;
+        });
+      }
+    }
+
+    function handleBulkScan(text) {
+      const tracking = extractTrackingNumber(text);
+      if (!tracking) {
+        showWarning('Invalid QR code');
+        return;
+      }
+
+      if (bulkScanItems.has(tracking)) {
+        showInfo('Already scanned: ' + tracking);
+        return;
+      }
+
+      bulkScanItems.set(tracking, {
+        tracking_number: tracking,
+        status: 'pending',
+        message: 'Pending'
+      });
+      updateBulkScanList();
+    }
+
+    function extractTrackingNumber(text) {
+      const raw = String(text || '').trim();
+      if (!raw) {
+        return '';
+      }
+
+      try {
+        const url = new URL(raw);
+        const param = url.searchParams.get('tracking_number') || url.searchParams.get('tracking');
+        if (param) {
+          return param.trim();
+        }
+      } catch (error) {
+        // Not a URL, continue with raw text.
+      }
+
+      const match = raw.match(/ST-\d{4}-\d+/i);
+      if (match) {
+        return match[0];
+      }
+
+      return raw;
+    }
+
+    function updateBulkScanList() {
+      const countEl = document.getElementById('bulk-scan-count');
+      if (countEl) {
+        countEl.textContent = String(bulkScanItems.size);
+      }
+
+      const container = document.getElementById('bulk-scan-list');
+      if (!container) {
+        return;
+      }
+
+      if (bulkScanItems.size === 0) {
+        container.innerHTML = 'No scans yet.';
+        return;
+      }
+
+      const rows = Array.from(bulkScanItems.values());
+      const columns = [
+        { label: 'Tracking #', field: 'tracking_number' },
+        {
+          label: 'Status',
+          field: 'status',
+          formatter: (val) => {
+            if (val === 'success') {
+              return '<span style="color: var(--success); font-weight: 600;">Received</span>';
+            }
+            if (val === 'error') {
+              return '<span style="color: var(--danger); font-weight: 600;">Error</span>';
+            }
+            return '<span style="color: var(--gray-600);">Pending</span>';
+          }
+        },
+        { label: 'Message', field: 'message' }
+      ];
+
+      container.innerHTML = createTable(columns, rows, 'table table-sm');
+    }
+
+    async function processBulkScans() {
+      if (bulkScanItems.size === 0) {
+        showError('No scans to process');
+        return;
+      }
+
+      const bin = document.getElementById('bulk-bin').value.trim();
+      const entries = Array.from(bulkScanItems.values());
+      let successCount = 0;
+
+      showLoading('Marking shipments...');
+      try {
+        for (const entry of entries) {
+          if (entry.status === 'success') {
+            continue;
+          }
+
+          try {
+            const response = await window.ShipTrack.relayInbound(entry.tracking_number, bin);
+            if (response.success) {
+              entry.status = 'success';
+              entry.message = 'Marked available';
+              successCount += 1;
+            } else {
+              entry.status = 'error';
+              entry.message = response.error || 'Failed to process';
+            }
+          } catch (error) {
+            entry.status = 'error';
+            entry.message = error.message || 'Failed to process';
+          }
+
+          updateBulkScanList();
+        }
+      } finally {
+        hideLoading();
+      }
+
+      if (successCount > 0) {
+        showSuccess('Marked ' + successCount + ' shipments as available');
+        loadRelayShipments();
+      }
+    }
+
+    function clearBulkScans() {
+      bulkScanItems.clear();
+      updateBulkScanList();
     }
   </script>
 </body>
