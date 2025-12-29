@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Departure Schedule - ShipTrack MVP</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="header">
+    <div class="container">
+      <nav class="nav">
+        <a href="index.html" class="nav-brand">ShipTrack</a>
+        <ul class="nav-links">
+          <li><a href="pricing.html" class="nav-link">Pricing</a></li>
+          <li><a href="departures.html" class="nav-link">Departures</a></li>
+          <li><a href="track.html" class="nav-link">Track</a></li>
+          <li><a href="staff.html" class="nav-link">Staff Login</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <!-- Page Title -->
+    <section style="background-color: var(--gray-100); padding: 3rem 0; border-bottom: 1px solid var(--gray-300);">
+      <div class="container">
+        <h1 style="margin-bottom: 0.5rem;">Departure Schedule</h1>
+        <p style="font-size: 1.125rem; color: var(--gray-600); margin-bottom: 0;">View scheduled departures for all service zones</p>
+      </div>
+    </section>
+
+    <!-- Zone Filter -->
+    <section style="padding: 2rem 0; background-color: var(--white);">
+      <div class="container">
+        <div class="card">
+          <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+            <label style="font-weight: 500;">Filter by Zone:</label>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+              <button onclick="filterZone('all')" class="btn btn-sm btn-primary" id="filter-all">All Zones</button>
+              <button onclick="filterZone('Zone 1')" class="btn btn-sm btn-outline" id="filter-zone1">Zone 1</button>
+              <button onclick="filterZone('Zone 2')" class="btn btn-sm btn-outline" id="filter-zone2">Zone 2</button>
+              <button onclick="filterZone('Zone 3')" class="btn btn-sm btn-outline" id="filter-zone3">Zone 3</button>
+              <button onclick="filterZone('Zone 4')" class="btn btn-sm btn-outline" id="filter-zone4">Zone 4</button>
+              <button onclick="filterZone('Zone 5')" class="btn btn-sm btn-outline" id="filter-zone5">Zone 5</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Departures Content -->
+    <section style="padding: 2rem 0;">
+      <div class="container">
+        <div id="departures-loading">
+          <div class="card">
+            <div class="skeleton" style="height: 2rem; width: 60%; margin-bottom: 1rem;"></div>
+            <div class="skeleton" style="height: 1rem; width: 80%; margin-bottom: 0.5rem;"></div>
+            <div class="skeleton" style="height: 1rem; width: 70%; margin-bottom: 0.5rem;"></div>
+            <div class="skeleton" style="height: 1rem; width: 75%;"></div>
+          </div>
+        </div>
+
+        <div id="departures-content" style="display: none;">
+          <!-- Zone 1 -->
+          <div class="card zone-card" data-zone="Zone 1">
+            <h2 style="color: var(--primary); margin-bottom: 1rem;">Zone 1 - Major Metropolitan Areas</h2>
+            <p style="color: var(--gray-600); margin-bottom: 1.5rem;">Daily service to major cities</p>
+            <div class="table-container">
+              <table class="table" id="table-zone1">
+                <thead>
+                  <tr>
+                    <th>Day</th>
+                    <th>Departure Time</th>
+                    <th>Frequency</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-zone1">
+                  <tr><td colspan="3" style="text-align: center;">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Zone 2 -->
+          <div class="card zone-card" data-zone="Zone 2">
+            <h2 style="color: var(--primary); margin-bottom: 1rem;">Zone 2 - Regional Centers</h2>
+            <p style="color: var(--gray-600); margin-bottom: 1.5rem;">3x weekly service</p>
+            <div class="table-container">
+              <table class="table" id="table-zone2">
+                <thead>
+                  <tr>
+                    <th>Day</th>
+                    <th>Departure Time</th>
+                    <th>Frequency</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-zone2">
+                  <tr><td colspan="3" style="text-align: center;">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Zone 3 -->
+          <div class="card zone-card" data-zone="Zone 3">
+            <h2 style="color: var(--primary); margin-bottom: 1rem;">Zone 3 - Secondary Cities</h2>
+            <p style="color: var(--gray-600); margin-bottom: 1.5rem;">2x weekly departures</p>
+            <div class="table-container">
+              <table class="table" id="table-zone3">
+                <thead>
+                  <tr>
+                    <th>Day</th>
+                    <th>Departure Time</th>
+                    <th>Frequency</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-zone3">
+                  <tr><td colspan="3" style="text-align: center;">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Zone 4 -->
+          <div class="card zone-card" data-zone="Zone 4">
+            <h2 style="color: var(--primary); margin-bottom: 1rem;">Zone 4 - Remote Areas</h2>
+            <p style="color: var(--gray-600); margin-bottom: 1.5rem;">Weekly service</p>
+            <div class="table-container">
+              <table class="table" id="table-zone4">
+                <thead>
+                  <tr>
+                    <th>Day</th>
+                    <th>Departure Time</th>
+                    <th>Frequency</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-zone4">
+                  <tr><td colspan="3" style="text-align: center;">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Zone 5 -->
+          <div class="card zone-card" data-zone="Zone 5">
+            <h2 style="color: var(--primary); margin-bottom: 1rem;">Zone 5 - Special Destinations</h2>
+            <p style="color: var(--gray-600); margin-bottom: 1.5rem;">Scheduled departures</p>
+            <div class="table-container">
+              <table class="table" id="table-zone5">
+                <thead>
+                  <tr>
+                    <th>Day</th>
+                    <th>Departure Time</th>
+                    <th>Frequency</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-zone5">
+                  <tr><td colspan="3" style="text-align: center;">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div id="departures-error" style="display: none;">
+          <div class="alert alert-danger">
+            <h4>Error Loading Departures</h4>
+            <p>Unable to load departure schedules. Please try again later.</p>
+            <button onclick="loadDepartures()" class="btn btn-primary">Retry</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Info Section -->
+    <section class="bg-light" style="padding: 3rem 0;">
+      <div class="container container-sm">
+        <h2 style="margin-bottom: 2rem; text-align: center;">Important Information</h2>
+        
+        <div class="card">
+          <h4 style="color: var(--primary); margin-bottom: 1rem;">Pickup Deadline</h4>
+          <p>All shipments must be picked up within <strong>48 hours</strong> of creation. Our drivers will coordinate with you to ensure timely collection.</p>
+        </div>
+
+        <div class="card">
+          <h4 style="color: var(--primary); margin-bottom: 1rem;">Transit Times</h4>
+          <p>Transit times vary by zone and distance. Track your shipment in real-time for the most accurate delivery estimates.</p>
+        </div>
+
+        <div class="card">
+          <h4 style="color: var(--primary); margin-bottom: 1rem;">Schedule Changes</h4>
+          <p>Departure schedules are subject to change based on demand and operational needs. Check this page regularly for updates.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer style="background-color: var(--gray-800); color: white; padding: 2rem 0;">
+    <div class="container text-center">
+      <p style="margin-bottom: 0.5rem; color: rgba(255,255,255,0.9);">&copy; 2025 ShipTrack MVP. All rights reserved.</p>
+      <p style="margin: 0; color: rgba(255,255,255,0.7); font-size: 0.875rem;">Version 1.0.0</p>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+  <script src="ui.js"></script>
+  <script>
+    let allDepartures = [];
+    let currentFilter = 'all';
+
+    // Load departures on page load
+    document.addEventListener('DOMContentLoaded', function() {
+      loadDepartures();
+    });
+
+    async function loadDepartures() {
+      try {
+        document.getElementById('departures-loading').style.display = 'block';
+        document.getElementById('departures-content').style.display = 'none';
+        document.getElementById('departures-error').style.display = 'none';
+
+        const response = await window.ShipTrack.getDepartures();
+
+        if (response.success) {
+          allDepartures = response.departures;
+          displayDepartures();
+          
+          document.getElementById('departures-loading').style.display = 'none';
+          document.getElementById('departures-content').style.display = 'block';
+        } else {
+          throw new Error(response.error || 'Failed to load departures');
+        }
+      } catch (error) {
+        console.error('Error loading departures:', error);
+        document.getElementById('departures-loading').style.display = 'none';
+        document.getElementById('departures-error').style.display = 'block';
+      }
+    }
+
+    function displayDepartures() {
+      // Group departures by zone
+      const byZone = {
+        'Zone 1': [],
+        'Zone 2': [],
+        'Zone 3': [],
+        'Zone 4': [],
+        'Zone 5': []
+      };
+
+      allDepartures.forEach(dep => {
+        if (byZone[dep.zone]) {
+          byZone[dep.zone].push(dep);
+        }
+      });
+
+      // Sort by day of week
+      const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+      
+      Object.keys(byZone).forEach(zone => {
+        byZone[zone].sort((a, b) => {
+          return dayOrder.indexOf(a.day_of_week) - dayOrder.indexOf(b.day_of_week);
+        });
+      });
+
+      // Populate tables
+      for (let i = 1; i <= 5; i++) {
+        const zoneName = `Zone ${i}`;
+        const tbody = document.getElementById(`tbody-zone${i}`);
+        const departures = byZone[zoneName];
+
+        if (departures && departures.length > 0) {
+          tbody.innerHTML = departures.map(dep => `
+            <tr>
+              <td><strong>${dep.day_of_week}</strong></td>
+              <td>${dep.departure_time}</td>
+              <td><span class="badge badge-info">Active</span></td>
+            </tr>
+          `).join('');
+        } else {
+          tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--gray-600);">No scheduled departures</td></tr>';
+        }
+      }
+
+      // Apply current filter
+      applyFilter();
+    }
+
+    function filterZone(zone) {
+      currentFilter = zone;
+      
+      // Update button states
+      document.querySelectorAll('[id^="filter-"]').forEach(btn => {
+        btn.className = 'btn btn-sm btn-outline';
+      });
+      
+      if (zone === 'all') {
+        document.getElementById('filter-all').className = 'btn btn-sm btn-primary';
+      } else {
+        const zoneNum = zone.split(' ')[1];
+        document.getElementById(`filter-zone${zoneNum}`).className = 'btn btn-sm btn-primary';
+      }
+
+      applyFilter();
+    }
+
+    function applyFilter() {
+      const cards = document.querySelectorAll('.zone-card');
+      
+      cards.forEach(card => {
+        const zone = card.getAttribute('data-zone');
+        if (currentFilter === 'all' || currentFilter === zone) {
+          card.style.display = 'block';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    }
+  </script>
+</body>
+</html>

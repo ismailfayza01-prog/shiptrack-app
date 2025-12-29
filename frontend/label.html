@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shipment Label - ShipTrack MVP</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <style>
+    @media print {
+      body { background: white; }
+      .no-print { display: none !important; }
+      .label-container { box-shadow: none; border: 2px solid black; page-break-after: always; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container" style="padding: 2rem 0;">
+    <div class="no-print" style="margin-bottom: 2rem; text-align: center;">
+      <button onclick="window.print()" class="btn btn-primary btn-lg">Print Label</button>
+      <button onclick="window.close()" class="btn btn-outline btn-lg">Close</button>
+    </div>
+
+    <div id="label-content" class="label-container" style="max-width: 600px; margin: 0 auto; padding: 2rem; background: white; border: 2px solid var(--gray-300);">
+      <div style="text-align: center; margin-bottom: 2rem;">
+        <h1 style="font-size: 2rem; margin-bottom: 0.5rem;">ShipTrack</h1>
+        <p style="margin: 0; color: var(--gray-600);">Shipment Label</p>
+      </div>
+
+      <div style="text-align: center; margin-bottom: 2rem;">
+        <div id="qrcode" style="display: inline-block;"></div>
+      </div>
+
+      <div style="text-align: center; margin-bottom: 2rem; padding: 1rem; background: var(--gray-100); border-radius: var(--radius-md);">
+        <p style="font-size: 0.875rem; margin-bottom: 0.5rem;">TRACKING NUMBER</p>
+        <p id="tracking-number" style="font-size: 1.5rem; font-weight: 700; font-family: var(--font-mono); margin: 0;">Loading...</p>
+      </div>
+
+      <div style="text-align: center; margin-bottom: 2rem; padding: 1rem; background: var(--primary-light); border-radius: var(--radius-md);">
+        <p style="font-size: 0.875rem; margin-bottom: 0.5rem; color: var(--primary-dark);">PICKUP CODE</p>
+        <p id="pickup-code" style="font-size: 2rem; font-weight: 700; font-family: var(--font-mono); margin: 0; color: var(--primary-dark);">------</p>
+      </div>
+
+      <div style="border-top: 2px dashed var(--gray-300); padding-top: 1.5rem; margin-top: 1.5rem;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+          <div>
+            <p style="font-size: 0.875rem; color: var(--gray-600); margin-bottom: 0.25rem;">Customer</p>
+            <p id="customer-name" style="font-weight: 600; margin: 0;">-</p>
+          </div>
+          <div>
+            <p style="font-size: 0.875rem; color: var(--gray-600); margin-bottom: 0.25rem;">Destination</p>
+            <p id="destination" style="font-weight: 600; margin: 0;">-</p>
+          </div>
+          <div>
+            <p style="font-size: 0.875rem; color: var(--gray-600); margin-bottom: 0.25rem;">Weight</p>
+            <p id="weight" style="font-weight: 600; margin: 0;">-</p>
+          </div>
+          <div>
+            <p style="font-size: 0.875rem; color: var(--gray-600); margin-bottom: 0.25rem;">Zone</p>
+            <p id="zone" style="font-weight: 600; margin: 0;">-</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script src="ui.js"></script>
+  <script>
+    async function loadLabel() {
+      const params = new URLSearchParams(window.location.search);
+      const shipmentId = params.get('id');
+
+      if (!shipmentId) {
+        alert('No shipment ID provided');
+        return;
+      }
+
+      try {
+        const response = await window.ShipTrack.getShipment(shipmentId);
+
+        if (response.success) {
+          const s = response.shipment;
+          
+          // Generate QR code
+          const qrCode = `AP|${s.shipment_id}|${s.pickup_code6}`;
+          new QRCode(document.getElementById('qrcode'), {
+            text: qrCode,
+            width: 200,
+            height: 200
+          });
+
+          // Fill label data
+          document.getElementById('tracking-number').textContent = s.tracking_number;
+          document.getElementById('pickup-code').textContent = s.pickup_code6;
+          document.getElementById('customer-name').textContent = s.customer_name;
+          document.getElementById('destination').textContent = s.destination_city;
+          document.getElementById('weight').textContent = s.weight_kg + ' kg';
+          document.getElementById('zone').textContent = s.destination_zone;
+        } else {
+          alert('Failed to load shipment details');
+        }
+      } catch (error) {
+        alert('Error: ' + error.message);
+      }
+    }
+
+    loadLabel();
+  </script>
+</body>
+</html>

@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Driver Portal - ShipTrack MVP</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+</head>
+<body>
+  <header class="header">
+    <div class="container">
+      <nav class="nav">
+        <a href="index.html" class="nav-brand">ShipTrack Driver</a>
+        <div id="header-user"></div>
+      </nav>
+    </div>
+  </header>
+
+  <main style="min-height: 80vh;">
+    <!-- Login View -->
+    <section id="login-view" style="padding: 4rem 0;">
+      <div class="container container-sm">
+        <div class="card">
+          <h2 style="text-align: center; margin-bottom: 2rem;">Driver Login</h2>
+          
+          <form id="login-form" onsubmit="handleLogin(event)">
+            <div class="form-group">
+              <label class="form-label required">Phone Number</label>
+              <input type="tel" id="phone" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label required">PIN</label>
+              <input type="password" id="pin" class="form-control" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block btn-lg">Login</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- Driver Dashboard -->
+    <section id="dashboard-view" style="display: none; padding: 2rem 0;">
+      <div class="container">
+        <h1 style="margin-bottom: 2rem;">My Assignments</h1>
+
+        <div class="card" style="margin-bottom: 2rem;">
+          <h3 style="margin-bottom: 1rem;">Quick Pickup Access</h3>
+          <p style="color: var(--gray-600); margin-bottom: 1rem;">
+            Enter a tracking number to start the pickup workflow.
+          </p>
+          <div class="form-group">
+            <label class="form-label required">Tracking Number</label>
+            <input type="text" id="quick-tracking" class="form-control" placeholder="ST-2024-123456">
+          </div>
+          <button onclick="startPickupByTracking()" class="btn btn-primary">Start Pickup</button>
+        </div>
+
+        <div id="assignments-list">
+          <div class="skeleton" style="height: 8rem; margin-bottom: 1rem;"></div>
+          <div class="skeleton" style="height: 8rem;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pickup Workflow Modal -->
+    <div id="workflow-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 3000; overflow-y: auto;">
+      <div style="min-height: 100vh; padding: 1rem; display: flex; align-items: center; justify-content: center;">
+        <div style="background: white; border-radius: var(--radius-lg); max-width: 600px; width: 100%; padding: 2rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+            <h2 style="margin: 0;">Pickup Workflow</h2>
+            <button onclick="closeWorkflow()" class="btn btn-sm btn-danger">Cancel</button>
+          </div>
+
+          <div id="workflow-content"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="app.js"></script>
+  <script src="ui.js"></script>
+  <script>
+    let currentShipment = null;
+    let workflowStep = 0;
+    let qrScanner = null;
+
+    document.addEventListener('DOMContentLoaded', function() {
+      if (window.ShipTrack.isAuthenticated()) {
+        const user = window.ShipTrack.getCurrentUser();
+        if (user && user.role === 'DRIVER') {
+          showDashboard();
+        } else {
+          showError('Access denied. Driver role required.');
+          setTimeout(() => window.ShipTrack.logout(), 2000);
+        }
+      }
+    });
+
+    async function handleLogin(event) {
+      event.preventDefault();
+      
+      const phone = document.getElementById('phone').value.trim();
+      const pin = document.getElementById('pin').value.trim();
+      
+      try {
+        showLoading('Logging in...');
+        const result = await window.ShipTrack.login(phone, pin);
+        hideLoading();
+
+        if (result.success && result.user.role === 'DRIVER') {
+          showSuccess('Login successful!');
+          setTimeout(showDashboard, 500);
+        } else {
+          showError('Access denied. Driver role required.');
+          window.ShipTrack.logout();
+        }
+      } catch (error) {
+        hideLoading();
+        showError(error.message);
+      }
+    }
+
+    function showDashboard() {
+      document.getElementById('login-view').style.display = 'none';
+      document.getElementById('dashboard-view').style.display = 'block';
+      displayUserInfo('header-user');
+      loadAssignments();
+      setInterval(loadAssignments, 60000); // Refresh every minute
+    }
+
+    async function loadAssignments() {
+      try {
+        const response = await window.ShipTrack.getMyAssignments();
+        
+        if (response.success) {
+          displayAssignments(response.shipments);
+        }
+      } catch (error) {
+        console.error('Error loading assignments:', error);
+      }
+    }
+
+    function getPaymentLabel(shipment) {
+      const term = shipment && shipment.payment_terms ? String(shipment.payment_terms) : '';
+      if (term === 'POD') {
+        return 'Payment on delivery';
+      }
+      if (term === 'PAY_ON_PICKUP') {
+        return 'Pay on pickup';
+      }
+      if (term === 'PAY_NOW') {
+        return 'Paid (staff)';
+      }
+      return '-';
+    }
+
+    function displayAssignments(shipments) {
+      const container = document.getElementById('assignments-list');
+      
+      if (!shipments || shipments.length === 0) {
+        container.innerHTML = '<div class="card"><p style="text-align: center; color: var(--gray-600);">No assignments yet</p></div>';
+        return;
+      }
+
+      container.innerHTML = shipments.map((s) => {
+        const shipmentId = encodeURIComponent(String(s.shipment_id ?? ''));
+        const tracking = encodeURIComponent(String(s.tracking_number ?? ''));
+        const pickupCode = encodeURIComponent(String(s.pickup_code6 ?? ''));
+        const amountDue = Number.isFinite(Number(s.amount_due)) ? Number(s.amount_due) : 0;
+        return `
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
+            <div>
+              <h3 style="margin-bottom: 0.5rem;">${s.tracking_number}</h3>
+              <p style="margin: 0; color: var(--gray-600);">${s.customer_name}</p>
+            </div>
+            <div style="text-align: right;">
+              ${window.ShipTrack.createStatusBadge(s.status)}
+              <div style="margin-top: 0.5rem; font-weight: 500; color: ${s.is_overdue ? 'var(--danger)' : 'var(--success)'};">
+                SLA: ${window.ShipTrack.formatTimeRemaining(s.pickup_deadline_at)}
+              </div>
+            </div>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1rem; padding: 1rem; background: var(--gray-100); border-radius: var(--radius-md);">
+            <div>
+              <p style="color: var(--gray-600); font-size: 0.875rem; margin: 0;">Destination</p>
+              <p style="font-weight: 500; margin: 0;">${s.destination_zone}</p>
+            </div>
+            <div>
+              <p style="color: var(--gray-600); font-size: 0.875rem; margin: 0;">Amount Due</p>
+              <p style="font-weight: 500; margin: 0;">MAD ${Number.isFinite(Number(s.amount_due)) ? Number(s.amount_due).toFixed(2) : '-'}</p>
+            </div>
+            <div>
+              <p style="color: var(--gray-600); font-size: 0.875rem; margin: 0;">Payment</p>
+              <p style="font-weight: 500; margin: 0;">${getPaymentLabel(s)}</p>
+            </div>
+            <div>
+              <p style="color: var(--gray-600); font-size: 0.875rem; margin: 0;">Pickup Code</p>
+              <p style="font-weight: 500; margin: 0; font-family: var(--font-mono);">${s.pickup_code6}</p>
+            </div>
+          </div>
+
+          ${s.status === 'DRIVER_ASSIGNED' ? `
+            <button
+              class="btn btn-primary btn-block"
+              data-shipment-id="${shipmentId}"
+              data-tracking="${tracking}"
+              data-pickup-code="${pickupCode}"
+              data-amount-due="${amountDue}"
+              onclick="startPickupFromButton(this)">
+              Start Pickup
+            </button>
+          ` : `
+            <div style="text-align: center; color: var(--gray-600);">
+              Current status: ${s.status.replace(/_/g, ' ')}
+            </div>
+          `}
+        </div>
+      `}).join('');
+    }
+
+    function startPickup(shipmentId, tracking, pickupCode, amountDue) {
+      currentShipment = { shipmentId, tracking, pickupCode, amountDue };
+      workflowStep = 0;
+      showWorkflowStep();
+      document.getElementById('workflow-modal').style.display = 'block';
+    }
+
+    function startPickupFromButton(button) {
+      if (!button) return;
+      const shipmentId = decodeURIComponent(button.dataset.shipmentId || '');
+      const tracking = decodeURIComponent(button.dataset.tracking || '');
+      const pickupCode = decodeURIComponent(button.dataset.pickupCode || '');
+      const amountDue = Number(button.dataset.amountDue || 0);
+      startPickup(shipmentId, tracking, pickupCode, amountDue);
+    }
+
+    function showWorkflowStep() {
+      stopQrScanner(false);
+
+      const steps = [
+        { title: 'Step 1: Scan or Enter Tracking', html: getTrackingStep() },
+        { title: 'Step 2: Take Parcel Photo', html: getPackagePhotoStep() },
+        { title: 'Step 3: Finish Pickup', html: getFinishStep() }
+      ];
+
+      const step = steps[workflowStep];
+      document.getElementById('workflow-content').innerHTML = `
+        <div style="text-align: center; margin-bottom: 2rem;">
+          <h3>${step.title}</h3>
+          <div style="display: flex; gap: 0.5rem; justify-content: center; margin-top: 1rem;">
+            ${steps.map((_, i) => `
+              <div style="width: 2rem; height: 0.25rem; background: ${i <= workflowStep ? 'var(--primary)' : 'var(--gray-300)'}; border-radius: 2px;"></div>
+            `).join('')}
+          </div>
+        </div>
+        ${step.html}
+      `;
+
+      if (workflowStep === 0) {
+        startQrScanner();
+      }
+    }
+
+    function getTrackingStep() {
+      const trackingValue = currentShipment && currentShipment.tracking ? currentShipment.tracking : '';
+      return `
+        <div id="qr-reader" style="width: 100%; margin-bottom: 1rem;"></div>
+        <p style="text-align: center; color: var(--gray-600); margin-bottom: 1rem;">Scan a QR code or enter tracking number:</p>
+        <input type="text" id="manual-tracking" class="form-control" placeholder="Tracking number" value="${trackingValue}">
+        <button onclick="confirmTracking()" class="btn btn-primary btn-block" style="margin-top: 1rem;">Continue</button>
+      `;
+    }
+
+    function getFinishStep() {
+      return `
+        <p style="text-align: center; margin-bottom: 1.5rem;">Finish pickup and mark as loaded.</p>
+        <button onclick="finishPickup()" class="btn btn-success btn-block btn-lg">Finish Pickup</button>
+      `;
+    }
+
+    function getPackagePhotoStep() {
+      if (currentShipment && currentShipment.packagePhotoUploaded) {
+        return `
+          <p style="text-align: center; margin-bottom: 1rem;">Parcel photo already uploaded.</p>
+          <button onclick="skipPackagePhoto()" class="btn btn-outline btn-block">Continue</button>
+        `;
+      }
+      return `
+        <p style="text-align: center; margin-bottom: 1.5rem;">Take a photo of the parcel</p>
+        <button onclick="takePackagePhoto()" class="btn btn-primary btn-block btn-lg">Open Camera</button>
+        <div id="package-photo-preview" style="margin-top: 1rem; text-align: center;"></div>
+      `;
+    }
+
+    function confirmTracking() {
+      stopQrScanner(false);
+      const trackingField = document.getElementById('manual-tracking');
+      const trackingValue = trackingField ? trackingField.value.trim() : '';
+
+      if (!trackingValue && !(currentShipment && currentShipment.shipmentId)) {
+        showError('Tracking number is required');
+        return;
+      }
+
+      if (!currentShipment) {
+        currentShipment = { shipmentId: '', tracking: '', pickupCode: '', amountDue: 0 };
+      }
+
+      if (trackingValue) {
+        currentShipment.tracking = trackingValue;
+      }
+
+      workflowStep++;
+      showWorkflowStep();
+    }
+
+    async function takePackagePhoto() {
+      try {
+        const photo = await window.ShipTrack.capturePhoto();
+        document.getElementById('package-photo-preview').innerHTML = `<p style="color: var(--success);">Photo captured!</p>`;
+        
+        showLoading('Uploading...');
+        const response = await window.ShipTrack.claimShipmentByTracking({
+          tracking_number: currentShipment.tracking || '',
+          shipment_id: currentShipment.shipmentId || '',
+          photo_base64: photo
+        });
+        hideLoading();
+        
+        if (response.success) {
+          if (response.shipment) {
+            currentShipment.shipmentId = response.shipment.shipment_id;
+            currentShipment.tracking = response.shipment.tracking_number;
+            currentShipment.pickupCode = response.shipment.pickup_code6 || '';
+            currentShipment.amountDue = response.shipment.amount_due;
+          }
+          showSuccess('Parcel photo uploaded!');
+          if (currentShipment) {
+            currentShipment.packagePhotoUploaded = true;
+          }
+          setTimeout(() => { workflowStep++; showWorkflowStep(); }, 1000);
+        } else {
+          showError(response.error || 'Upload failed');
+        }
+      } catch (error) {
+        hideLoading();
+        showError(error.message);
+      }
+    }
+
+    async function finishPickup() {
+      try {
+        if (!currentShipment || !currentShipment.shipmentId) {
+          showError('Shipment not found. Please verify tracking first.');
+          return;
+        }
+
+        if (!currentShipment.packagePhotoUploaded) {
+          showError('Parcel photo is required before finishing.');
+          workflowStep = 1;
+          showWorkflowStep();
+          return;
+        }
+
+        showLoading('Finishing pickup...');
+        const response = await window.ShipTrack.setShipmentStatus(currentShipment.shipmentId, 'LOADED');
+        hideLoading();
+        
+        if (response.success) {
+          showSuccess('Pickup marked as loaded!');
+          closeWorkflow();
+          loadAssignments();
+        } else {
+          showError('Failed to finish pickup');
+        }
+      } catch (error) {
+        hideLoading();
+        showError(error.message);
+      }
+    }
+
+    function closeWorkflow() {
+      stopQrScanner(true);
+      document.getElementById('workflow-modal').style.display = 'none';
+      currentShipment = null;
+      workflowStep = 0;
+    }
+
+    function skipPackagePhoto() {
+      workflowStep++;
+      showWorkflowStep();
+    }
+
+    async function startPickupByTracking() {
+      const tracking = document.getElementById('quick-tracking').value.trim();
+
+      if (!tracking) {
+        showError('Tracking number is required');
+        return;
+      }
+
+      currentShipment = {
+        shipmentId: '',
+        tracking: tracking,
+        pickupCode: '',
+        amountDue: 0,
+        packagePhotoUploaded: false
+      };
+      workflowStep = 0;
+      showWorkflowStep();
+      document.getElementById('workflow-modal').style.display = 'block';
+    }
+
+    function startQrScanner() {
+      if (typeof Html5Qrcode === 'undefined') {
+        showError('QR scanner failed to load');
+        return;
+      }
+
+      const container = document.getElementById('qr-reader');
+      if (!container) return;
+      if (qrScanner) return;
+
+      qrScanner = new Html5Qrcode('qr-reader');
+      qrScanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: 250 },
+        (decodedText) => {
+          const trackingField = document.getElementById('manual-tracking');
+          if (!trackingField) {
+            return;
+          }
+
+          if (decodedText && decodedText.includes('|')) {
+            const parts = decodedText.split('|');
+            if (parts.length === 3 && parts[0] === 'AT') {
+              trackingField.value = parts[1];
+            } else if (parts.length === 3 && parts[0] === 'AP') {
+              if (!currentShipment) {
+                currentShipment = { shipmentId: '', tracking: '', pickupCode: '', amountDue: 0 };
+              }
+              currentShipment.shipmentId = parts[1];
+            }
+          } else {
+            trackingField.value = decodedText;
+          }
+
+          stopQrScanner(false);
+          confirmTracking();
+        }
+      ).catch((err) => {
+        console.error('QR start error:', err);
+        showError('Unable to access camera. Enter the code manually.');
+        stopQrScanner(false);
+      });
+    }
+
+    function stopQrScanner(forceClear) {
+      if (!qrScanner) return;
+      if (typeof qrScanner.getState === 'function') {
+        const state = qrScanner.getState();
+        if (state !== Html5QrcodeScannerState.SCANNING && state !== Html5QrcodeScannerState.PAUSED) {
+          if (forceClear) {
+            qrScanner.clear();
+            qrScanner = null;
+          }
+          return;
+        }
+      }
+      qrScanner.stop().then(() => {
+        qrScanner.clear();
+        qrScanner = null;
+      }).catch((err) => {
+        if (forceClear && qrScanner) {
+          qrScanner.clear();
+          qrScanner = null;
+        }
+        console.error('QR stop error:', err);
+      });
+    }
+  </script>
+</body>
+</html>

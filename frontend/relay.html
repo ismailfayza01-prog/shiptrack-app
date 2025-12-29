@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Relay Portal - ShipTrack MVP</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="header">
+    <div class="container">
+      <nav class="nav">
+        <a href="index.html" class="nav-brand">ShipTrack Relay</a>
+        <div id="header-user"></div>
+      </nav>
+    </div>
+  </header>
+
+  <main style="min-height: 80vh;">
+    <!-- Login View -->
+    <section id="login-view" style="padding: 4rem 0;">
+      <div class="container container-sm">
+        <div class="card">
+          <h2 style="text-align: center; margin-bottom: 2rem;">Relay Login</h2>
+          
+          <form id="login-form" onsubmit="handleLogin(event)">
+            <div class="form-group">
+              <label class="form-label required">Phone Number</label>
+              <input type="tel" id="phone" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label required">PIN</label>
+              <input type="password" id="pin" class="form-control" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block btn-lg">Login</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- Relay Dashboard -->
+    <section id="dashboard-view" style="display: none; padding: 2rem 0;">
+      <div class="container">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem;">
+          
+          <!-- Inbound Scanner -->
+          <div class="card">
+            <h3 style="margin-bottom: 1.5rem;">Receive Inbound</h3>
+            
+            <div class="form-group">
+              <label class="form-label">Tracking Number</label>
+              <input type="text" id="inbound-tracking" class="form-control" placeholder="ST-2024-123456">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Bin Assignment</label>
+              <input type="text" id="inbound-bin" class="form-control" placeholder="A-12">
+            </div>
+
+            <button onclick="markInbound()" class="btn btn-primary btn-block btn-lg">Mark As Received</button>
+          </div>
+
+          <!-- Release Package -->
+          <div class="card">
+            <h3 style="margin-bottom: 1.5rem;">Release Package</h3>
+            
+            <div class="form-group">
+              <label class="form-label">Tracking Number</label>
+              <input type="text" id="release-tracking" class="form-control" placeholder="ST-2024-123456">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Release Type</label>
+              <select id="release-type" class="form-control form-select">
+                <option value="RELEASED">Relay Pickup</option>
+                <option value="DELIVERED">Home Delivery</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label required">Receiver ID Number</label>
+              <input type="text" id="release-id-number" class="form-control" placeholder="ID number" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label required">Receiver ID Photo</label>
+              <input type="file" id="release-id-photo" class="form-control" accept="image/*" capture="environment" required>
+              <span class="form-help">Required for release</span>
+            </div>
+
+            <button onclick="releasePackage()" class="btn btn-success btn-block btn-lg">Release Package</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+  <script src="ui.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      if (window.ShipTrack.isAuthenticated()) {
+        const user = window.ShipTrack.getCurrentUser();
+        if (user && (user.role === 'RELAY' || user.role === 'ADMIN')) {
+          showDashboard();
+        } else {
+          showError('Access denied. Relay role required.');
+          setTimeout(() => window.ShipTrack.logout(), 2000);
+        }
+      }
+    });
+
+    async function handleLogin(event) {
+      event.preventDefault();
+      
+      const phone = document.getElementById('phone').value.trim();
+      const pin = document.getElementById('pin').value.trim();
+      
+      try {
+        showLoading('Logging in...');
+        const result = await window.ShipTrack.login(phone, pin);
+        hideLoading();
+
+        if (result.success && (result.user.role === 'RELAY' || result.user.role === 'ADMIN')) {
+          showSuccess('Login successful!');
+          setTimeout(showDashboard, 500);
+        } else {
+          showError('Access denied. Relay role required.');
+          window.ShipTrack.logout();
+        }
+      } catch (error) {
+        hideLoading();
+        showError(error.message);
+      }
+    }
+
+    function showDashboard() {
+      document.getElementById('login-view').style.display = 'none';
+      document.getElementById('dashboard-view').style.display = 'block';
+      displayUserInfo('header-user');
+    }
+
+    async function markInbound() {
+      const tracking = document.getElementById('inbound-tracking').value.trim();
+      const bin = document.getElementById('inbound-bin').value.trim();
+
+      if (!tracking) {
+        showError('Please enter tracking number');
+        return;
+      }
+
+      try {
+        showLoading('Processing...');
+        const response = await window.ShipTrack.relayInbound(tracking, bin);
+        hideLoading();
+
+        if (response.success) {
+          showSuccess('Package marked as received!');
+          document.getElementById('inbound-tracking').value = '';
+          document.getElementById('inbound-bin').value = '';
+        } else {
+          showError(response.error || 'Failed to process');
+        }
+      } catch (error) {
+        hideLoading();
+        showError(error.message);
+      }
+    }
+
+    async function releasePackage() {
+      const tracking = document.getElementById('release-tracking').value.trim();
+      const type = document.getElementById('release-type').value;
+      const receiverIdNumber = document.getElementById('release-id-number').value.trim();
+      const receiverIdPhoto = document.getElementById('release-id-photo').files[0];
+
+      if (!tracking || !receiverIdNumber || !receiverIdPhoto) {
+        showError('Please enter tracking number, receiver ID, and photo');
+        return;
+      }
+
+      try {
+        showLoading('Uploading photo...');
+        const photoBase64 = await window.ShipTrack.fileToBase64(receiverIdPhoto);
+        await window.ShipTrack.uploadPhotoByTracking(tracking, 'receiver_id', photoBase64);
+
+        showLoading('Processing...');
+        const response = await window.ShipTrack.relayRelease(tracking, type, receiverIdNumber);
+        hideLoading();
+
+        if (response.success) {
+          showSuccess('Package released successfully!');
+          document.getElementById('release-tracking').value = '';
+          document.getElementById('release-id-number').value = '';
+          document.getElementById('release-id-photo').value = '';
+        } else {
+          showError(response.error || 'Failed to release');
+        }
+      } catch (error) {
+        hideLoading();
+        showError(error.message);
+      }
+    }
+  </script>
+</body>
+</html>

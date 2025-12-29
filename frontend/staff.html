@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Staff Portal - ShipTrack MVP</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="header">
+    <div class="container">
+      <nav class="nav">
+        <a href="index.html" class="nav-brand">ShipTrack</a>
+        <div id="header-user"></div>
+      </nav>
+    </div>
+  </header>
+
+  <main style="min-height: 80vh;">
+    <!-- Login View -->
+    <section id="login-view" style="padding: 4rem 0;">
+      <div class="container container-sm">
+        <div class="card">
+          <h2 style="text-align: center; margin-bottom: 2rem;">Staff Login</h2>
+          
+          <form id="login-form" onsubmit="handleLogin(event)">
+            <div class="form-group">
+              <label class="form-label required" for="phone">Phone Number</label>
+              <input type="tel" id="phone" class="form-control" placeholder="+1234567890" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label required" for="pin">PIN</label>
+              <input type="password" id="pin" class="form-control" placeholder="Enter 4-6 digit PIN" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block btn-lg">Login</button>
+          </form>
+
+          <div style="text-align: center; margin-top: 1.5rem;">
+            <p style="color: var(--gray-600); font-size: 0.875rem;">
+              <a href="driver.html">Driver Login</a> | 
+              <a href="relay.html">Relay Login</a> | 
+              <a href="admin.html">Admin Login</a>
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Staff Dashboard -->
+    <section id="dashboard-view" style="display: none; padding: 2rem 0;">
+      <div class="container">
+        <h1 style="margin-bottom: 2rem;">Staff Dashboard</h1>
+
+        <!-- Create Shipment Card -->
+        <div class="card">
+          <h3 style="margin-bottom: 1.5rem;">Create New Shipment</h3>
+          
+          <form id="shipment-form" onsubmit="handleCreateShipment(event)">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem;">
+              <div class="form-group">
+                <label class="form-label required">Sender Full Name</label>
+                <input type="text" name="customer_name" class="form-control" required>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label required">Sender Phone</label>
+                <input type="tel" name="customer_phone" class="form-control" placeholder="+1234567890" required>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label required">Sender Address</label>
+                <input type="text" name="sender_address" class="form-control" placeholder="Street, City" required>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label required">Sender ID Number</label>
+                <input type="text" name="sender_id_number" class="form-control" required>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label required">Destination Country</label>
+                <select name="destination_zone" id="destination-country" class="form-control form-select" required size="7" style="height: 240px;" onchange="syncReceiverCountry()">
+                  <option value="">Select Country</option>
+                  <option>Belgium</option>
+                  <option>Denmark</option>
+                  <option>France</option>
+                  <option>Germany</option>
+                  <option>Italy</option>
+                  <option>Netherlands</option>
+                  <option>Norway</option>
+                  <option>Poland</option>
+                  <option>Portugal</option>
+                  <option>Spain</option>
+                  <option>Switzerland</option>
+                  <option>United Kingdom</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label required">Receiver City</label>
+                <input type="text" name="destination_city" class="form-control" required>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label required">Receiver Country (auto)</label>
+                <input type="text" name="receiver_country" id="receiver-country" class="form-control" readonly required>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label required">Receiver ZIP Code</label>
+                <input type="text" name="receiver_zip" class="form-control" required>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label required">Receiver Phone</label>
+                <input type="tel" name="receiver_phone" class="form-control" placeholder="+1234567890" required>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label required">Weight (kg)</label>
+                <input type="number" name="weight_kg" class="form-control" step="0.1" min="0.1" required onchange="updatePricePreview()">
+                <span class="form-help">Min billing: 20kg</span>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label required">Pricing Tier</label>
+                <select name="pricing_tier" class="form-control form-select" required onchange="updatePricePreview()">
+                  <option value="B2C">B2C Standard</option>
+                  <option value="B2B_TIER_1">B2B Tier 1</option>
+                  <option value="B2B_TIER_2">B2B Tier 2</option>
+                  <option value="B2B_TIER_3">B2B Tier 3</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Rate per Kg (min 15 MAD)</label>
+                <input type="number" name="negotiated_rate_per_kg" id="negotiated-rate" class="form-control" step="0.01" min="15" placeholder="Optional" onchange="updatePricePreview()">
+                <span class="form-help">Leave empty to use tier pricing</span>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label required">Sender ID Photo</label>
+              <input type="file" id="sender-id-photo" class="form-control" accept="image/*" capture="environment" required>
+              <span class="form-help">Required for every shipment</span>
+            </div>
+
+            <div class="form-group" id="package-photo-group">
+              <label class="form-label required">Parcel Photo</label>
+              <input type="file" id="package-photo" class="form-control" accept="image/*" capture="environment" required>
+              <span class="form-help">Required for every shipment</span>
+            </div>
+
+            <div class="form-check" style="margin: 1.5rem 0;">
+              <input type="checkbox" id="has_home_delivery" name="has_home_delivery" class="form-check-input" onchange="updatePricePreview()">
+              <label class="form-check-label" for="has_home_delivery">Add home delivery (+MAD 5.00)</label>
+            </div>
+
+            <div class="form-group" style="margin: 1rem 0;">
+              <label class="form-label required">Payment Option</label>
+              <label class="form-check-label" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                <input type="radio" name="payment-option" value="PAY_ON_PICKUP" checked onchange="updatePaymentRequirements()">
+                Pay on pickup
+              </label>
+              <label class="form-check-label" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                <input type="radio" name="payment-option" value="POD" onchange="updatePaymentRequirements()">
+                Payment on delivery (POD)
+              </label>
+              <label class="form-check-label" style="display: flex; align-items: center; gap: 0.5rem;">
+                <input type="radio" name="payment-option" value="PAY_NOW" onchange="updatePaymentRequirements()">
+                Pay now (staff)
+              </label>
+            </div>
+
+            <div class="form-group" id="payment-amount-group" style="display: none;">
+              <label class="form-label required">Amount Paid</label>
+              <input type="number" id="payment-amount" class="form-control" step="0.01" min="0">
+            </div>
+
+            <div id="price-preview" style="background-color: var(--gray-100); padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1.5rem;">
+              <div style="display: flex; justify-content: space-between;">
+                <span>Estimated Total:</span>
+                <strong style="font-size: 1.25rem; color: var(--primary);" id="preview-total">MAD 0.00</strong>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-lg">Create Shipment</button>
+          </form>
+        </div>
+
+        <!-- My Shipments List -->
+        <div class="card">
+          <h3 style="margin-bottom: 1.5rem;">My Shipments</h3>
+          <div id="shipments-list">
+            <div class="skeleton" style="height: 3rem; margin-bottom: 0.5rem;"></div>
+            <div class="skeleton" style="height: 3rem; margin-bottom: 0.5rem;"></div>
+            <div class="skeleton" style="height: 3rem;"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer style="background-color: var(--gray-800); color: white; padding: 2rem 0; margin-top: 4rem;">
+    <div class="container text-center">
+      <p style="margin: 0; color: rgba(255,255,255,0.7);">&copy; 2025 ShipTrack MVP</p>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+  <script src="ui.js"></script>
+  <script>
+    // Check auth on load
+    document.addEventListener('DOMContentLoaded', function() {
+      if (window.ShipTrack.isAuthenticated()) {
+        const user = window.ShipTrack.getCurrentUser();
+        if (user && (user.role === 'STAFF' || user.role === 'ADMIN')) {
+          showDashboard();
+        } else {
+          showError('Access denied. Staff role required.');
+          setTimeout(() => window.ShipTrack.logout(), 2000);
+        }
+      }
+    });
+
+    async function handleLogin(event) {
+      event.preventDefault();
+      
+      const phone = document.getElementById('phone').value.trim();
+      const pin = document.getElementById('pin').value.trim();
+      
+      try {
+        showLoading('Logging in...');
+        const result = await window.ShipTrack.login(phone, pin);
+        hideLoading();
+
+        if (result.success) {
+          if (result.user.role === 'STAFF' || result.user.role === 'ADMIN') {
+            showSuccess('Login successful!');
+            setTimeout(showDashboard, 500);
+          } else {
+            showError('Access denied. Staff role required.');
+            window.ShipTrack.logout();
+          }
+        } else {
+          showError(result.error || 'Login failed');
+        }
+      } catch (error) {
+        hideLoading();
+        showError(error.message);
+      }
+    }
+
+      function showDashboard() {
+        document.getElementById('login-view').style.display = 'none';
+        document.getElementById('dashboard-view').style.display = 'block';
+        displayUserInfo('header-user');
+        loadMyShipments();
+        updatePricePreview();
+        updatePaymentRequirements();
+        syncReceiverCountry();
+      }
+
+      function syncReceiverCountry() {
+        const destinationSelect = document.getElementById('destination-country');
+        const receiverInput = document.getElementById('receiver-country');
+
+        if (!destinationSelect || !receiverInput) {
+          return;
+        }
+
+        receiverInput.value = destinationSelect.value || '';
+      }
+
+    function getSelectedPaymentTerm() {
+      const selected = document.querySelector('input[name="payment-option"]:checked');
+      return selected ? selected.value : 'PAY_ON_PICKUP';
+    }
+
+    function updatePaymentRequirements() {
+      const amountGroup = document.getElementById('payment-amount-group');
+      const amountInput = document.getElementById('payment-amount');
+      const rateInput = document.getElementById('negotiated-rate');
+
+      const term = getSelectedPaymentTerm();
+      const isPayNow = term === 'PAY_NOW';
+
+      if (amountGroup && amountInput) {
+        amountGroup.style.display = isPayNow ? 'block' : 'none';
+        amountInput.required = isPayNow;
+      }
+
+      if (rateInput) {
+        rateInput.required = isPayNow;
+      }
+    }
+
+    function updatePricePreview() {
+      const form = document.getElementById('shipment-form');
+      if (!form) return;
+
+      const weight = parseFloat(form.weight_kg.value) || 0;
+      const tier = form.pricing_tier.value;
+      const hasDelivery = form.has_home_delivery.checked;
+      const negotiatedRate = form.negotiated_rate_per_kg.value;
+
+      if (weight > 0) {
+        const pricing = window.ShipTrack.calculatePrice(weight, tier, hasDelivery, negotiatedRate);
+        document.getElementById('preview-total').textContent = 'MAD ' + pricing.total.toFixed(2);
+      } else {
+        document.getElementById('preview-total').textContent = 'MAD 0.00';
+      }
+    }
+
+      async function handleCreateShipment(event) {
+        event.preventDefault();
+        
+        const formData = getFormData('shipment-form');
+        const idPhotoInput = document.getElementById('sender-id-photo');
+        const idPhotoFile = idPhotoInput ? idPhotoInput.files[0] : null;
+      const paymentTerm = getSelectedPaymentTerm();
+      const paymentReceived = paymentTerm === 'PAY_NOW';
+      const packagePhotoInput = document.getElementById('package-photo');
+      const packagePhotoFile = packagePhotoInput ? packagePhotoInput.files[0] : null;
+      const paymentAmountInput = document.getElementById('payment-amount');
+      const paymentAmount = paymentAmountInput ? paymentAmountInput.value.trim() : '';
+      const rateValue = document.getElementById('negotiated-rate').value.trim();
+
+        if (!formData.sender_id_number) {
+          showError('Sender ID number is required');
+          return;
+        }
+
+        if (!idPhotoFile) {
+          showError('Sender ID photo is required');
+          return;
+        }
+
+        if (!packagePhotoFile) {
+          showError('Parcel photo is required');
+          return;
+        }
+
+      if (paymentReceived) {
+        if (!rateValue) {
+          showError('Rate per kg is required when payment is received');
+          return;
+        }
+        if (!paymentAmount) {
+          showError('Amount paid is required when payment is received');
+          return;
+        }
+      }
+      
+      try {
+        showLoading('Creating shipment...');
+        const response = await window.ShipTrack.createShipment({
+          customer_name: formData.customer_name,
+          customer_phone: formData.customer_phone,
+          sender_address: formData.sender_address,
+          sender_id_number: formData.sender_id_number,
+          destination_zone: formData.destination_zone,
+          destination_city: formData.destination_city,
+          receiver_country: formData.receiver_country,
+          receiver_zip: formData.receiver_zip,
+          receiver_phone: formData.receiver_phone,
+          weight_kg: parseFloat(formData.weight_kg),
+          pricing_tier: formData.pricing_tier,
+          has_home_delivery: formData.has_home_delivery,
+          payment_received: paymentReceived,
+          payment_terms: paymentTerm,
+          amount_paid: paymentReceived ? paymentAmount : '',
+          negotiated_rate_per_kg: formData.negotiated_rate_per_kg
+        });
+
+        hideLoading();
+
+        if (response.success) {
+          showSuccess('Shipment created successfully!');
+          const shipment = response.shipment;
+
+          try {
+            showLoading('Uploading ID photo...');
+            const idBase64 = await window.ShipTrack.fileToBase64(idPhotoFile);
+            await window.ShipTrack.uploadPhoto(shipment.shipment_id, 'id', idBase64);
+            if (packagePhotoFile) {
+              showLoading('Uploading parcel photo...');
+              const packageBase64 = await window.ShipTrack.fileToBase64(packagePhotoFile);
+              await window.ShipTrack.uploadPhoto(shipment.shipment_id, 'package', packageBase64);
+            }
+          } catch (uploadError) {
+            showError('Shipment created, but photo upload failed');
+          } finally {
+            hideLoading();
+          }
+          
+          // Show shipment details and offer to print label
+          showModal(
+            'Shipment Created',
+            `
+              <p><strong>Tracking Number:</strong> ${shipment.tracking_number}</p>
+              <p><strong>Pickup Code:</strong> ${shipment.pickup_code}</p>
+              <p><strong>Amount Due:</strong> ${Number.isFinite(Number(shipment.amount_due)) ? 'MAD ' + Number(shipment.amount_due).toFixed(2) : '-'}</p>
+              <p><strong>Pickup Deadline:</strong> ${window.ShipTrack.formatDate(shipment.pickup_deadline_at)}</p>
+            `,
+            [
+              { label: 'Close', class: 'btn-secondary', onclick: 'hideModal()' },
+              { label: 'Print Label', class: 'btn-primary', onclick: `window.open('label.html?id=${shipment.shipment_id}', '_blank'); hideModal();` }
+            ]
+          );
+          
+          document.getElementById('shipment-form').reset();
+          updatePricePreview();
+          updatePaymentRequirements();
+          loadMyShipments();
+        } else {
+          showError(response.error || 'Failed to create shipment');
+        }
+      } catch (error) {
+        hideLoading();
+        showError(error.message);
+      }
+    }
+
+    async function loadMyShipments() {
+      try {
+        const response = await window.ShipTrack.getMyShipments();
+        
+        if (response.success) {
+          displayShipments(response.shipments);
+        }
+      } catch (error) {
+        document.getElementById('shipments-list').innerHTML = '<p style="color: var(--danger);">Failed to load shipments</p>';
+      }
+    }
+
+    function displayShipments(shipments) {
+      const container = document.getElementById('shipments-list');
+      
+      if (!shipments || shipments.length === 0) {
+        container.innerHTML = '<p style="color: var(--gray-600); text-align: center;">No shipments created yet</p>';
+        return;
+      }
+
+      function formatCurrentHandler(shipment) {
+        const role = shipment.current_handler_role ? shipment.current_handler_role.replace(/_/g, ' ') : '';
+        const location = shipment.current_handler_location || '';
+        if (!role && !location) {
+          return '-';
+        }
+        return `${role}${role && location ? ' - ' : ''}${location}`;
+      }
+
+      const columns = [
+        { label: 'Tracking #', field: 'tracking_number' },
+        { label: 'Customer', field: 'customer_name' },
+        { label: 'Destination', field: 'destination_city' },
+        { label: 'Handler', field: 'current_handler_location', formatter: (val, row) => formatCurrentHandler(row) },
+        { label: 'Status', field: 'status', formatter: (val) => window.ShipTrack.createStatusBadge(val) },
+        {
+          label: 'Amount',
+          field: 'amount_due',
+          formatter: (val) => {
+            const amount = Number(val)
+            return Number.isFinite(amount) ? 'MAD ' + amount.toFixed(2) : '-'
+          }
+        },
+        { label: 'Created', field: 'created_at', formatter: (val) => window.ShipTrack.formatDateShort(val) }
+      ];
+
+      container.innerHTML = createTable(columns, shipments);
+    }
+  </script>
+</body>
+</html>

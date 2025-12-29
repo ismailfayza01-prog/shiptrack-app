@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Track Shipment - ShipTrack MVP</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="header">
+    <div class="container">
+      <nav class="nav">
+        <a href="index.html" class="nav-brand">ShipTrack</a>
+        <ul class="nav-links">
+          <li><a href="pricing.html" class="nav-link">Pricing</a></li>
+          <li><a href="departures.html" class="nav-link">Departures</a></li>
+          <li><a href="track.html" class="nav-link">Track</a></li>
+          <li><a href="staff.html" class="nav-link">Staff Login</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <!-- Page Title -->
+    <section style="background-color: var(--gray-100); padding: 3rem 0; border-bottom: 1px solid var(--gray-300);">
+      <div class="container text-center">
+        <h1 style="margin-bottom: 0.5rem;">Track Your Shipment</h1>
+        <p style="font-size: 1.125rem; color: var(--gray-600); margin-bottom: 0;">Enter your tracking number to view real-time status</p>
+      </div>
+    </section>
+
+    <!-- Tracking Form -->
+    <section style="padding: 3rem 0;">
+      <div class="container container-sm">
+        <div class="card">
+          <h3 style="margin-bottom: 1.5rem; text-align: center;">Enter Tracking Number</h3>
+          
+          <form id="tracking-form" onsubmit="trackShipment(event)">
+            <div class="form-group">
+              <label class="form-label required" for="tracking-number">Tracking Number</label>
+              <div style="display: flex; gap: 0.75rem; align-items: center;">
+                <input 
+                  type="text" 
+                  id="tracking-number" 
+                  name="tracking_number" 
+                  class="form-control" 
+                  placeholder="ST-2024-123456"
+                  required
+                  style="text-align: center; font-size: 1.25rem; font-family: var(--font-mono);">
+                <button type="button" class="btn btn-outline" onclick="openQrScanner()">Scan QR</button>
+              </div>
+              <span class="form-help">Format: ST-YYYY-NNNNNN</span>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-lg btn-block">Track Shipment</button>
+          </form>
+          <div id="qr-scan-panel" class="card" style="display: none; margin-top: 1.5rem; border: 1px solid var(--gray-200);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+              <h4 style="margin: 0;">Scan Tracking QR</h4>
+              <button type="button" class="btn btn-sm btn-outline" onclick="closeQrScanner()">Close</button>
+            </div>
+            <div id="qr-reader" style="width: 100%;"></div>
+            <p class="form-help" style="margin-top: 0.75rem;">Point your camera at the shipment QR code.</p>
+          </div>
+        </div>
+
+        <!-- Example tracking numbers (for demo) -->
+        <div style="text-align: center; margin-top: 1rem;">
+          <p style="color: var(--gray-600); font-size: 0.875rem;">
+            Don't have a tracking number? <a href="staff.html">Create a shipment</a>
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tracking Results -->
+    <section id="tracking-results" style="padding: 2rem 0; display: none;">
+      <div class="container container-sm">
+        <!-- Shipment Info Card -->
+        <div class="card">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+            <div>
+              <h2 style="margin-bottom: 0.5rem;" id="result-tracking-number">-</h2>
+              <p style="margin: 0; color: var(--gray-600);">Tracking Number</p>
+            </div>
+            <div id="result-status-badge">
+              <span class="badge badge-secondary">-</span>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--gray-200);">
+            <div>
+              <p style="color: var(--gray-600); font-size: 0.875rem; margin-bottom: 0.25rem;">Destination</p>
+              <p style="font-weight: 500; margin: 0;" id="result-destination">-</p>
+            </div>
+            <div>
+              <p style="color: var(--gray-600); font-size: 0.875rem; margin-bottom: 0.25rem;">Zone</p>
+              <p style="font-weight: 500; margin: 0;" id="result-zone">-</p>
+            </div>
+            <div>
+              <p style="color: var(--gray-600); font-size: 0.875rem; margin-bottom: 0.25rem;">Created</p>
+              <p style="font-weight: 500; margin: 0;" id="result-created">-</p>
+            </div>
+            <div>
+              <p style="color: var(--gray-600); font-size: 0.875rem; margin-bottom: 0.25rem;">Current Handler</p>
+              <p style="font-weight: 500; margin: 0;" id="result-handler">-</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Event Timeline -->
+        <div class="card">
+          <h3 style="margin-bottom: 1.5rem;">Shipment Timeline</h3>
+          
+          <div id="timeline-content">
+            <div class="skeleton" style="height: 4rem; margin-bottom: 1rem;"></div>
+            <div class="skeleton" style="height: 4rem; margin-bottom: 1rem;"></div>
+            <div class="skeleton" style="height: 4rem;"></div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div style="text-align: center; margin-top: 2rem;">
+          <button onclick="resetTracking()" class="btn btn-outline">Track Another Shipment</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Error Message -->
+    <section id="tracking-error" style="padding: 2rem 0; display: none;">
+      <div class="container container-sm">
+        <div class="alert alert-danger">
+          <h4>Shipment Not Found</h4>
+          <p id="error-message">The tracking number you entered could not be found. Please check the number and try again.</p>
+          <button onclick="resetTracking()" class="btn btn-primary">Try Again</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Info Section -->
+    <section class="bg-light" style="padding: 3rem 0;">
+      <div class="container">
+        <h2 style="margin-bottom: 2rem; text-align: center;">Tracking Help</h2>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2rem;">
+          <div class="card">
+            <h4 style="color: var(--primary); margin-bottom: 1rem;">Where's My Tracking Number?</h4>
+            <p>Your tracking number is provided when your shipment is created. Check your confirmation email or receipt from our staff.</p>
+          </div>
+
+          <div class="card">
+            <h4 style="color: var(--primary); margin-bottom: 1rem;">Status Updates</h4>
+            <p>Track your shipment in real-time as it moves through our system. Updates appear within minutes of each status change.</p>
+          </div>
+
+          <div class="card">
+            <h4 style="color: var(--primary); margin-bottom: 1rem;">Need Help?</h4>
+            <p>If you have questions about your shipment, contact our support team or visit our staff portal.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer style="background-color: var(--gray-800); color: white; padding: 2rem 0;">
+    <div class="container text-center">
+      <p style="margin-bottom: 0.5rem; color: rgba(255,255,255,0.9);">&copy; 2025 ShipTrack MVP. All rights reserved.</p>
+      <p style="margin: 0; color: rgba(255,255,255,0.7); font-size: 0.875rem;">Version 1.0.0</p>
+    </div>
+  </footer>
+
+  <script src="vendor/html5-qrcode.min.js"></script>
+  <script src="app.js"></script>
+  <script src="ui.js"></script>
+  <script>
+    let qrScanner = null;
+    let qrScannerRunning = false;
+
+    function openQrScanner() {
+      const panel = document.getElementById('qr-scan-panel');
+      if (!panel) {
+        showError('Scanner not available');
+        return;
+      }
+
+      panel.style.display = 'block';
+
+      if (!window.Html5Qrcode) {
+        showError('Scanner library failed to load.');
+        return;
+      }
+
+      if (!qrScanner) {
+        qrScanner = new Html5Qrcode('qr-reader');
+      }
+
+      if (qrScannerRunning) {
+        return;
+      }
+
+      qrScannerRunning = true;
+      qrScanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 240, height: 240 } },
+        (decodedText) => {
+          onQrScanSuccess(decodedText);
+        },
+        () => {}
+      ).catch((error) => {
+        qrScannerRunning = false;
+        showError(error.message || 'Unable to start camera');
+      });
+    }
+
+    function closeQrScanner() {
+      const panel = document.getElementById('qr-scan-panel');
+      if (panel) {
+        panel.style.display = 'none';
+      }
+
+      if (qrScanner && qrScannerRunning) {
+        qrScanner.stop().then(() => {
+          qrScannerRunning = false;
+        }).catch(() => {
+          qrScannerRunning = false;
+        });
+      }
+    }
+
+    function onQrScanSuccess(text) {
+      const trackingInput = document.getElementById('tracking-number');
+      if (trackingInput) {
+        trackingInput.value = text.trim();
+      }
+
+      closeQrScanner();
+      triggerTrackingSubmit();
+    }
+
+    function triggerTrackingSubmit() {
+      const form = document.getElementById('tracking-form');
+      if (!form) {
+        return;
+      }
+
+      if (typeof form.requestSubmit === 'function') {
+        form.requestSubmit();
+        return;
+      }
+
+      trackShipment({ preventDefault: () => {} });
+    }
+
+    async function trackShipment(event) {
+      event.preventDefault();
+      
+      const trackingNumber = document.getElementById('tracking-number').value.trim();
+      
+      if (!trackingNumber) {
+        showError('Please enter a tracking number');
+        return;
+      }
+
+      try {
+        showLoading('Tracking shipment...');
+        
+        const response = await window.ShipTrack.trackShipment(trackingNumber);
+        
+        hideLoading();
+
+        if (response.success) {
+          displayTrackingResults(response.shipment, response.events);
+        } else {
+          showTrackingError(response.error || 'Shipment not found');
+        }
+      } catch (error) {
+        hideLoading();
+        console.error('Tracking error:', error);
+        showTrackingError(error.message);
+      }
+    }
+
+    function displayTrackingResults(shipment, events) {
+      // Hide form, show results
+      document.querySelector('section:nth-of-type(2)').style.display = 'none';
+      document.getElementById('tracking-error').style.display = 'none';
+      document.getElementById('tracking-results').style.display = 'block';
+
+      // Display shipment info
+      document.getElementById('result-tracking-number').textContent = shipment.tracking_number;
+      document.getElementById('result-status-badge').innerHTML = window.ShipTrack.createStatusBadge(shipment.status);
+      document.getElementById('result-destination').textContent = shipment.destination_city;
+      document.getElementById('result-zone').textContent = shipment.destination_zone;
+      document.getElementById('result-created').textContent = window.ShipTrack.formatDate(shipment.created_at);
+      const handlerRole = shipment.current_handler_role ? shipment.current_handler_role.replace(/_/g, ' ') : '';
+      const handlerLocation = shipment.current_handler_location || '';
+      document.getElementById('result-handler').textContent =
+        handlerRole || handlerLocation ? `${handlerRole}${handlerRole && handlerLocation ? ' - ' : ''}${handlerLocation}` : '-';
+
+      // Display timeline
+      displayTimeline(events);
+
+      // Scroll to results
+      document.getElementById('tracking-results').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function displayTimeline(events) {
+      const container = document.getElementById('timeline-content');
+      
+      if (!events || events.length === 0) {
+        container.innerHTML = '<p style="color: var(--gray-600); text-align: center;">No events recorded yet</p>';
+        return;
+      }
+
+      // Sort events by timestamp (newest first)
+      const sortedEvents = events.sort((a, b) => {
+        return new Date(b.event_timestamp) - new Date(a.event_timestamp);
+      });
+
+      // Build timeline HTML
+      let html = '<div style="position: relative;">';
+      
+      sortedEvents.forEach((event, index) => {
+        const isLast = index === sortedEvents.length - 1;
+        
+        html += `
+          <div style="position: relative; padding-left: 3rem; padding-bottom: ${isLast ? '0' : '2rem'};">
+            <!-- Timeline dot -->
+            <div style="position: absolute; left: 0; top: 0; width: 1.5rem; height: 1.5rem; border-radius: 50%; background-color: var(--primary); border: 3px solid white; box-shadow: 0 0 0 3px var(--primary-light);"></div>
+            
+            <!-- Timeline line -->
+            ${!isLast ? '<div style="position: absolute; left: 0.65rem; top: 1.5rem; bottom: -2rem; width: 2px; background-color: var(--gray-300);"></div>' : ''}
+            
+            <!-- Event content -->
+            <div style="background-color: var(--gray-100); padding: 1rem; border-radius: var(--radius-md);">
+              <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+                <strong style="color: var(--primary);">${event.event_type.replace(/_/g, ' ')}</strong>
+                <span style="color: var(--gray-600); font-size: 0.875rem;">${window.ShipTrack.formatDate(event.event_timestamp)}</span>
+              </div>
+              ${event.notes ? `<p style="margin: 0; color: var(--gray-700);">${event.notes}</p>` : ''}
+            </div>
+          </div>
+        `;
+      });
+      
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    function showTrackingError(message) {
+      document.querySelector('section:nth-of-type(2)').style.display = 'none';
+      document.getElementById('tracking-results').style.display = 'none';
+      document.getElementById('tracking-error').style.display = 'block';
+      document.getElementById('error-message').textContent = message;
+      document.getElementById('tracking-error').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function resetTracking() {
+      document.querySelector('section:nth-of-type(2)').style.display = 'block';
+      document.getElementById('tracking-results').style.display = 'none';
+      document.getElementById('tracking-error').style.display = 'none';
+      document.getElementById('tracking-form').reset();
+      document.getElementById('tracking-number').focus();
+    }
+  </script>
+</body>
+</html>

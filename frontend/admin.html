@@ -1,0 +1,1265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard - ShipTrack MVP</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body.admin-page {
+      font-family: "Space Grotesk", "Segoe UI", sans-serif;
+      background: linear-gradient(160deg, #f6f4ef 0%, #f2f8f6 50%, #f7f9ff 100%);
+      color: #1f2933;
+    }
+
+    .admin-hero {
+      background: linear-gradient(120deg, #0f766e 0%, #0891b2 55%, #0ea5a4 100%);
+      color: #f8fafc;
+      border-radius: 1.25rem;
+      padding: 2.5rem;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 20px 40px rgba(15, 118, 110, 0.2);
+      margin-bottom: 2.5rem;
+    }
+
+    .admin-hero::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.25), transparent 55%);
+    }
+
+    .admin-hero h1 {
+      font-family: "Fraunces", serif;
+      font-size: 2.75rem;
+      margin: 0 0 0.5rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    .admin-hero p {
+      margin: 0;
+      font-size: 1.1rem;
+      opacity: 0.9;
+      position: relative;
+      z-index: 1;
+    }
+
+    .admin-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .admin-card {
+      border: 1px solid rgba(15, 118, 110, 0.15);
+      background: #ffffff;
+      box-shadow: 0 12px 20px rgba(15, 23, 42, 0.08);
+    }
+
+    .admin-card h3 {
+      font-family: "Fraunces", serif;
+      color: #0f172a;
+    }
+
+    .admin-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 0.8rem;
+      border-radius: 999px;
+      background: rgba(14, 165, 164, 0.15);
+      color: #0f766e;
+      font-weight: 600;
+      font-size: 0.85rem;
+    }
+
+    .admin-stat {
+      background: #ffffff;
+      border-radius: 1rem;
+      padding: 1.5rem;
+      border: 1px solid rgba(14, 165, 164, 0.15);
+      box-shadow: 0 10px 18px rgba(14, 165, 164, 0.08);
+    }
+
+    .admin-stat h4 {
+      margin-bottom: 0.4rem;
+      color: #64748b;
+    }
+
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1rem;
+    }
+
+    .admin-action-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      align-items: stretch;
+    }
+
+    .admin-stat-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .admin-shipments .table-container {
+      max-height: 520px;
+      overflow-y: auto;
+    }
+
+    .admin-shipments .table th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    .admin-shipments .table td {
+      font-size: 0.9rem;
+    }
+
+    .admin-shipments .btn {
+      font-size: 0.85rem;
+    }
+
+    .admin-customers .table-container {
+      max-height: 420px;
+      overflow-y: auto;
+    }
+
+    .admin-customers .table th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    .admin-customers .table td {
+      font-size: 0.9rem;
+    }
+
+    .admin-customers .btn {
+      font-size: 0.85rem;
+    }
+
+    .admin-divider {
+      height: 1px;
+      background: rgba(15, 23, 42, 0.1);
+      margin: 1.5rem 0;
+    }
+
+    .scroll-select {
+      height: 220px;
+    }
+  </style>
+</head>
+<body class="admin-page">
+  <header class="header">
+    <div class="container">
+      <nav class="nav">
+        <a href="index.html" class="nav-brand">ShipTrack Admin</a>
+        <div id="header-user"></div>
+      </nav>
+    </div>
+  </header>
+
+  <main style="min-height: 80vh;">
+    <!-- Login View -->
+    <section id="login-view" style="padding: 4rem 0;">
+      <div class="container container-sm">
+        <div class="card">
+          <h2 style="text-align: center; margin-bottom: 2rem;">Admin Login</h2>
+          
+          <form id="login-form" onsubmit="handleLogin(event)">
+            <div class="form-group">
+              <label class="form-label required">Phone Number</label>
+              <input type="tel" id="phone" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label required">PIN</label>
+              <input type="password" id="pin" class="form-control" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block btn-lg">Login</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- Admin Dashboard -->
+    <section id="dashboard-view" style="display: none; padding: 2rem 0;">
+      <div class="container">
+        <div class="admin-hero">
+          <h1>Admin Command Center</h1>
+          <p>Monitor shipments, adjust pricing tiers, and keep the network moving.</p>
+        </div>
+
+        <div class="admin-stack">
+          <!-- Shipments -->
+          <div class="card admin-card admin-shipments">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+              <h3 style="margin: 0;">Shipments</h3>
+              <span class="admin-chip">Live</span>
+            </div>
+            <div class="form-group">
+              <input type="text" id="shipment-filter" class="form-control" placeholder="Search by tracking, customer, or ID" oninput="filterShipments()">
+            </div>
+            <div class="table-container">
+              <div id="shipments-table">Loading...</div>
+            </div>
+          </div>
+
+          <!-- Customers -->
+          <div class="card admin-card admin-customers">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+              <h3 style="margin: 0;">Customers</h3>
+              <span class="admin-chip">Directory</span>
+            </div>
+            <div class="form-group">
+              <input type="text" id="customer-filter" class="form-control" placeholder="Search by ID card, name, or phone" oninput="filterCustomers()">
+            </div>
+            <div class="table-container">
+              <div id="customers-table">Loading...</div>
+            </div>
+          </div>
+
+          <!-- Overdue Pickups Alert -->
+          <div class="card admin-card" style="border-left: 4px solid var(--danger);">
+            <h3 style="color: var(--danger); margin-bottom: 1rem;">Overdue Pickups</h3>
+            <div id="overdue-list">Loading...</div>
+          </div>
+
+          <!-- Quick Actions -->
+          <div class="card admin-card">
+            <h3 style="margin-bottom: 1.5rem;">Quick Actions</h3>
+            <div class="admin-action-row">
+              <button onclick="showAssignDriverModal()" class="btn btn-primary">Assign Driver</button>
+              <button onclick="showCreateDepartureModal()" class="btn btn-secondary">Add Departure</button>
+            </div>
+          </div>
+
+          <!-- Statistics -->
+          <div class="card admin-card">
+            <h3 style="margin-bottom: 1.5rem;">Operations Snapshot</h3>
+            <div class="admin-stat-list">
+              <div class="admin-stat text-center">
+                <h4 style="color: var(--gray-600);">Total Shipments</h4>
+                <p style="font-size: 2rem; font-weight: 700; margin: 0;">-</p>
+              </div>
+              <div class="admin-stat text-center">
+                <h4 style="color: var(--gray-600);">Active Drivers</h4>
+                <p style="font-size: 2rem; font-weight: 700; margin: 0;">-</p>
+              </div>
+              <div class="admin-stat text-center">
+                <h4 style="color: var(--gray-600);">Revenue</h4>
+                <p style="font-size: 2rem; font-weight: 700; margin: 0;">MAD -</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tier Pricing -->
+          <div class="card admin-card">
+            <h3 style="margin-bottom: 1rem;">Tier Pricing (MAD / kg)</h3>
+            <div class="pricing-grid">
+              <div class="form-group">
+                <label class="form-label">B2C</label>
+                <input type="number" id="price-b2c" class="form-control" step="0.01" min="15">
+              </div>
+              <div class="form-group">
+                <label class="form-label">B2B Tier 1</label>
+                <input type="number" id="price-b2b1" class="form-control" step="0.01" min="15">
+              </div>
+              <div class="form-group">
+                <label class="form-label">B2B Tier 2</label>
+                <input type="number" id="price-b2b2" class="form-control" step="0.01" min="15">
+              </div>
+              <div class="form-group">
+                <label class="form-label">B2B Tier 3</label>
+                <input type="number" id="price-b2b3" class="form-control" step="0.01" min="15">
+              </div>
+            </div>
+            <div class="admin-action-row" style="margin-top: 1rem;">
+              <button class="btn btn-primary" onclick="saveTierPricing()">Save Pricing</button>
+              <span id="pricing-status" class="form-help"></span>
+            </div>
+          </div>
+
+          <!-- Team Management -->
+          <div class="card admin-card">
+            <h3 style="margin-bottom: 1rem;">Team Management</h3>
+            <div style="margin-bottom: 1rem;">
+              <h4 style="margin-bottom: 0.75rem;">Add Member</h4>
+              <div class="form-group">
+                <label class="form-label required">Full Name</label>
+                <input type="text" id="member-name" class="form-control" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label required">Phone</label>
+                <input type="tel" id="member-phone" class="form-control" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label required">Address</label>
+                <input type="text" id="member-address" class="form-control" placeholder="Street, City" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label required">PIN</label>
+                <input type="password" id="member-pin" class="form-control" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Role</label>
+                <select id="member-role" class="form-control form-select">
+                  <option>STAFF</option>
+                  <option>DRIVER</option>
+                  <option>RELAY</option>
+                  <option>ADMIN</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Active</label>
+                <label style="display: flex; align-items: center; gap: 0.5rem;">
+                  <input type="checkbox" id="member-active" checked>
+                  <span>Enable account</span>
+                </label>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Notes</label>
+                <textarea id="member-notes" class="form-control" rows="2"></textarea>
+              </div>
+              <div class="admin-action-row">
+                <button class="btn btn-primary" onclick="createMember()">Add Member</button>
+                <span id="member-status" class="form-help"></span>
+              </div>
+            </div>
+
+            <div class="admin-divider"></div>
+
+            <div>
+              <h4 style="margin-bottom: 0.75rem;">Change Role</h4>
+              <div class="form-group">
+                <label class="form-label required">User</label>
+                <select id="role-user-id" class="form-control form-select scroll-select" size="7"></select>
+                <div class="form-help">Scroll to choose a user, then update their role.</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">New Role</label>
+                <select id="role-new" class="form-control form-select">
+                  <option>STAFF</option>
+                  <option>DRIVER</option>
+                  <option>RELAY</option>
+                  <option>ADMIN</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label required">Reason</label>
+                <textarea id="role-reason" class="form-control" rows="3" required></textarea>
+              </div>
+              <div class="admin-action-row">
+                <button class="btn btn-primary" onclick="changeRoleFromPanel()">Update Role</button>
+                <button class="btn btn-outline" onclick="refreshUserList()">Refresh User List</button>
+                <span id="role-status" class="form-help"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+  <script src="ui.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      if (window.ShipTrack.isAuthenticated()) {
+        const user = window.ShipTrack.getCurrentUser();
+        if (user && user.role === 'ADMIN') {
+          showDashboard();
+        } else {
+          showError('Access denied. Admin role required.');
+          setTimeout(() => window.ShipTrack.logout(), 2000);
+        }
+      }
+    });
+
+    async function handleLogin(event) {
+      event.preventDefault();
+      
+      const phone = document.getElementById('phone').value.trim();
+      const pin = document.getElementById('pin').value.trim();
+      
+      try {
+        showLoading('Logging in...');
+        const result = await window.ShipTrack.login(phone, pin);
+        hideLoading();
+
+        if (result.success && result.user.role === 'ADMIN') {
+          showSuccess('Login successful!');
+          setTimeout(showDashboard, 500);
+        } else {
+          showError('Access denied. Admin role required.');
+          window.ShipTrack.logout();
+        }
+      } catch (error) {
+        hideLoading();
+        showError(error.message);
+      }
+    }
+
+      function showDashboard() {
+        document.getElementById('login-view').style.display = 'none';
+        document.getElementById('dashboard-view').style.display = 'block';
+        displayUserInfo('header-user');
+        loadOverduePickups();
+        loadAllShipments();
+        loadCustomers();
+        loadTierPricing();
+        loadUsersList();
+      }
+
+    async function loadOverduePickups() {
+      try {
+        const response = await window.ShipTrack.getOverduePickups();
+
+        if (response.success) {
+          const container = document.getElementById('overdue-list');
+          
+          if (response.count === 0) {
+            container.innerHTML = '<p style="color: var(--success);">No overdue pickups!</p>';
+          } else {
+            container.innerHTML = `
+              <p style="margin-bottom: 1rem;"><strong>${response.count} overdue shipment(s)</strong></p>
+              <div class="table-container">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Tracking #</th>
+                      <th>Customer</th>
+                      <th>Status</th>
+                      <th>Hours Overdue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${response.overdue_shipments.map(s => `
+                      <tr>
+                        <td>${s.tracking_number}</td>
+                        <td>${s.customer_name}</td>
+                        <td>${window.ShipTrack.createStatusBadge(s.status)}</td>
+                        <td style="color: var(--danger); font-weight: 600;">${Math.round(s.hours_overdue)}h</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            `;
+          }
+        }
+      } catch (error) {
+        console.error('Error loading overdue pickups:', error);
+      }
+    }
+
+      let allShipments = [];
+      let shipmentsById = {};
+      let allCustomers = [];
+      let customersById = {};
+
+    function normalizeId(value) {
+      if (value === null || value === undefined) {
+        return '';
+      }
+      return String(value).trim();
+    }
+
+    function formatCurrentHandler(shipment) {
+      const role = shipment.current_handler_role ? shipment.current_handler_role.replace(/_/g, ' ') : '';
+      const location = shipment.current_handler_location || '';
+      if (!role && !location) {
+        return '-';
+      }
+      return `${role}${role && location ? ' - ' : ''}${location}`;
+    }
+
+    function indexShipments(shipments) {
+      shipmentsById = {};
+      shipments.forEach((shipment) => {
+        shipmentsById[normalizeId(shipment.shipment_id)] = shipment;
+      });
+    }
+
+    async function loadAllShipments() {
+      try {
+        const response = await window.ShipTrack.getMyShipments();
+        if (response.success) {
+          allShipments = response.shipments || [];
+          indexShipments(allShipments);
+          renderShipmentsTable(allShipments);
+        } else {
+          document.getElementById('shipments-table').innerHTML = '<p style="color: var(--danger);">Failed to load shipments</p>';
+        }
+      } catch (error) {
+        document.getElementById('shipments-table').innerHTML = '<p style="color: var(--danger);">Failed to load shipments</p>';
+      }
+    }
+
+    function filterShipments() {
+      const query = document.getElementById('shipment-filter').value.trim().toLowerCase();
+      if (!query) {
+        renderShipmentsTable(allShipments);
+        return;
+      }
+
+        const filtered = allShipments.filter((s) => {
+          return [
+            s.shipment_id,
+            s.tracking_number,
+            s.customer_name,
+            s.destination_city,
+            s.customer_phone,
+            s.customer_id,
+            s.sender_id_number,
+            s.receiver_id_number,
+            s.status
+          ].some((value) => String(value || '').toLowerCase().includes(query));
+        });
+
+      renderShipmentsTable(filtered);
+    }
+
+      function renderShipmentsTable(shipments) {
+        const columns = [
+          {
+            label: 'Shipment ID',
+            field: 'shipment_id',
+          formatter: (val, row) => {
+            const id = normalizeId(row.shipment_id);
+            return id ? `<a href="label.html?id=${id}" target="_blank" rel="noopener">${id}</a>` : '-';
+          }
+        },
+        { label: 'Tracking #', field: 'tracking_number' },
+        { label: 'Customer', field: 'customer_name' },
+        { label: 'Destination', field: 'destination_city' },
+        { label: 'Handler', field: 'current_handler_location', formatter: (_, row) => formatCurrentHandler(row) },
+        { label: 'Created By', field: 'created_by_user_name' },
+        { label: 'Status', field: 'status', formatter: (val) => window.ShipTrack.createStatusBadge(val) },
+        {
+          label: 'Amount',
+          field: 'amount_due',
+          formatter: (val) => {
+            const amount = Number(val);
+            return Number.isFinite(amount) ? 'MAD ' + amount.toFixed(2) : '-';
+          }
+        },
+        {
+          label: 'Sender ID',
+          field: 'id_photo_url',
+          formatter: (val) => val ? `<a href="${val}" target="_blank" rel="noopener" class="btn btn-sm btn-outline">View</a>` : '-'
+        },
+        {
+          label: 'Parcel Photo',
+          field: 'package_photo_url',
+          formatter: (val) => val ? `<a href="${val}" target="_blank" rel="noopener" class="btn btn-sm btn-outline">View</a>` : '-'
+        },
+        { label: 'Created', field: 'created_at', formatter: (val) => window.ShipTrack.formatDateShort(val) },
+        {
+          label: 'Manage',
+          field: 'shipment_id',
+          formatter: (val, row) => {
+            const id = normalizeId(row.shipment_id);
+            return id ? `<button class="btn btn-sm btn-primary" onclick="openShipmentManager('${id}')">Manage</button>` : '-';
+          }
+        }
+      ];
+
+        document.getElementById('shipments-table').innerHTML = createTable(columns, shipments || []);
+        updateAssignShipmentSelect();
+      }
+
+      function indexCustomers(customers) {
+        customersById = {};
+        customers.forEach((customer) => {
+          customersById[normalizeId(customer.id_number)] = customer;
+        });
+      }
+
+      async function loadCustomers() {
+        try {
+          const response = await window.ShipTrack.getCustomers();
+          if (response.success) {
+            allCustomers = response.customers || [];
+            indexCustomers(allCustomers);
+            renderCustomersTable(allCustomers);
+          } else {
+            document.getElementById('customers-table').innerHTML = '<p style="color: var(--danger);">Failed to load customers</p>';
+          }
+        } catch (error) {
+          document.getElementById('customers-table').innerHTML = '<p style="color: var(--danger);">Failed to load customers</p>';
+        }
+      }
+
+      function filterCustomers() {
+        const query = document.getElementById('customer-filter').value.trim().toLowerCase();
+        if (!query) {
+          renderCustomersTable(allCustomers);
+          return;
+        }
+
+        const filtered = allCustomers.filter((customer) => {
+          return [
+            customer.id_number,
+            customer.name,
+            customer.phone
+          ].some((value) => String(value || '').toLowerCase().includes(query));
+        });
+
+        renderCustomersTable(filtered);
+      }
+
+      function renderCustomersTable(customers) {
+        const columns = [
+          { label: 'Customer ID', field: 'customer_id' },
+          { label: 'ID Card', field: 'id_number' },
+          { label: 'Name', field: 'name' },
+          { label: 'Phone', field: 'phone' },
+          {
+            label: 'ID Photo',
+            field: 'id_photo_url',
+            formatter: (val) => val ? `<a href="${val}" target="_blank" rel="noopener" class="btn btn-sm btn-outline">View</a>` : '-'
+          },
+          { label: 'Sent', field: 'sent_count' },
+          { label: 'Received', field: 'received_count' },
+          { label: 'Last Activity', field: 'last_activity_at', formatter: (val) => window.ShipTrack.formatDateShort(val) },
+          {
+            label: 'History',
+            field: 'id_number',
+            formatter: (val) => val ? `<button class="btn btn-sm btn-outline" onclick="openCustomerProfile('${val}')">View</button>` : '-'
+          }
+        ];
+
+        document.getElementById('customers-table').innerHTML = createTable(columns, customers || []);
+      }
+
+      function renderCustomerShipmentsTable(shipments, type) {
+        if (!shipments || shipments.length === 0) {
+          return '<p style="color: var(--gray-600); margin: 0;">No shipments found.</p>';
+        }
+
+        const idColumn = type === 'received'
+          ? { label: 'Receiver ID', field: 'receiver_id_photo_url', formatter: (val) => val ? `<a href="${val}" target="_blank" rel="noopener" class="btn btn-sm btn-outline">View</a>` : '-' }
+          : { label: 'Sender ID', field: 'id_photo_url', formatter: (val) => val ? `<a href="${val}" target="_blank" rel="noopener" class="btn btn-sm btn-outline">View</a>` : '-' };
+
+        const columns = [
+          {
+            label: 'Shipment ID',
+            field: 'shipment_id',
+            formatter: (val) => val ? `<a href="label.html?id=${val}" target="_blank" rel="noopener">${val}</a>` : '-'
+          },
+          { label: 'Tracking #', field: 'tracking_number' },
+          { label: 'Status', field: 'status', formatter: (val) => window.ShipTrack.createStatusBadge(val) },
+          { label: 'Created', field: 'created_at', formatter: (val) => window.ShipTrack.formatDateShort(val) },
+          { label: 'Delivered', field: 'delivered_at', formatter: (val) => window.ShipTrack.formatDateShort(val) },
+          {
+            label: 'Parcel Photo',
+            field: 'package_photo_url',
+            formatter: (val) => val ? `<a href="${val}" target="_blank" rel="noopener" class="btn btn-sm btn-outline">View</a>` : '-'
+          },
+          idColumn
+        ];
+
+        return `<div class="table-container" style="max-height: 280px; overflow-y: auto;">${createTable(columns, shipments)}</div>`;
+      }
+
+      async function openCustomerProfile(idNumber) {
+        const id = normalizeId(idNumber);
+        if (!id) {
+          showError('Customer ID not found');
+          return;
+        }
+
+        try {
+          showLoading('Loading customer history...');
+          const response = await window.ShipTrack.getCustomerDetail(id);
+          hideLoading();
+
+          if (!response.success) {
+            showError(response.error || 'Failed to load customer');
+            return;
+          }
+
+          const customer = response.customer || {};
+          const sent = response.shipments_sent || [];
+          const received = response.shipments_received || [];
+
+          const idPhotoLink = customer.id_photo_url
+            ? `<a href="${customer.id_photo_url}" target="_blank" rel="noopener" class="btn btn-sm btn-outline">View ID Photo</a>`
+            : '-';
+
+          showModal(`Customer ${customer.id_number || id}`, `
+            <div style="margin-bottom: 1rem;">
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
+                <div><strong>Customer ID:</strong> ${customer.customer_id || '-'}</div>
+                <div><strong>Name:</strong> ${customer.name || '-'}</div>
+                <div><strong>Phone:</strong> ${customer.phone || '-'}</div>
+                <div><strong>ID Photo:</strong> ${idPhotoLink}</div>
+                <div><strong>Sent:</strong> ${customer.sent_count || 0}</div>
+                <div><strong>Received:</strong> ${customer.received_count || 0}</div>
+                <div><strong>Last Activity:</strong> ${window.ShipTrack.formatDate(customer.last_activity_at) || '-'}</div>
+              </div>
+            </div>
+            <div class="admin-divider" style="margin: 1.5rem 0;"></div>
+            <h4 style="margin-bottom: 0.75rem;">Shipping History (Sent)</h4>
+            ${renderCustomerShipmentsTable(sent, 'sent')}
+            <div class="admin-divider" style="margin: 1.5rem 0;"></div>
+            <h4 style="margin-bottom: 0.75rem;">Receiving History</h4>
+            ${renderCustomerShipmentsTable(received, 'received')}
+          `, [
+            { label: 'Close', class: 'btn-secondary', onclick: 'hideModal()' }
+          ]);
+        } catch (error) {
+          hideLoading();
+          showError(error.message || 'Failed to load customer');
+        }
+      }
+
+      const STATUS_OPTIONS = [
+        'CREATED',
+        'PAID',
+      'PENDING',
+      'DRIVER_ASSIGNED',
+      'LOADED',
+      'PICKED_UP',
+      'IN_TRANSIT',
+      'AT_RELAY_AVAILABLE',
+      'DELIVERED',
+      'RELEASED',
+      'VOIDED'
+    ];
+
+    function getStatusOptionsHtml(currentStatus) {
+      return STATUS_OPTIONS.map((status) => {
+        const selected = status === currentStatus ? 'selected' : '';
+        return `<option value="${status}" ${selected}>${status.replace(/_/g, ' ')}</option>`;
+      }).join('');
+    }
+
+    function openShipmentManager(shipmentId) {
+      const shipment = shipmentsById[normalizeId(shipmentId)];
+      if (!shipment) {
+        showError('Shipment not found');
+        return;
+      }
+      if (!adminUsers.length) {
+        loadUsersList();
+      }
+
+      const labelLink = shipment.shipment_id
+        ? `<a href="label.html?id=${shipment.shipment_id}" target="_blank" rel="noopener">Open label</a>`
+        : '-';
+      const idLink = shipment.id_photo_url
+        ? `<a href="${shipment.id_photo_url}" target="_blank" rel="noopener">View ID photo</a>`
+        : '-';
+      const packageLink = shipment.package_photo_url
+        ? `<a href="${shipment.package_photo_url}" target="_blank" rel="noopener">View parcel photo</a>`
+        : '-';
+
+      showModal(`Manage ${shipment.tracking_number}`, `
+        <div class="card" style="box-shadow: none; border: 1px solid var(--gray-200); margin-bottom: 1.5rem;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
+              <div><strong>Shipment ID:</strong> ${shipment.shipment_id || '-'}</div>
+              <div><strong>Status:</strong> ${window.ShipTrack.createStatusBadge(shipment.status || '-')}</div>
+              <div><strong>Created By:</strong> ${shipment.created_by_user_name || shipment.created_by_user_id || '-'}</div>
+              <div><strong>Customer ID:</strong> ${shipment.customer_id || '-'}</div>
+              <div><strong>Customer:</strong> ${shipment.customer_name || '-'}</div>
+            <div><strong>Phone:</strong> ${shipment.customer_phone || '-'}</div>
+            <div><strong>Sender Address:</strong> ${shipment.sender_address || '-'}</div>
+            <div><strong>Sender ID:</strong> ${shipment.sender_id_number || '-'}</div>
+            <div><strong>Destination:</strong> ${shipment.destination_city || '-'}</div>
+            <div><strong>Zone:</strong> ${shipment.destination_zone || '-'}</div>
+            <div><strong>Receiver Country:</strong> ${shipment.receiver_country || '-'}</div>
+            <div><strong>Receiver ZIP:</strong> ${shipment.receiver_zip || '-'}</div>
+            <div><strong>Receiver Phone:</strong> ${shipment.receiver_phone || '-'}</div>
+            <div><strong>Receiver ID:</strong> ${shipment.receiver_id_number || '-'}</div>
+            <div><strong>Receiver ID Photo:</strong> ${shipment.receiver_id_photo_url ? `<a href="${shipment.receiver_id_photo_url}" target="_blank" rel="noopener">View</a>` : '-'}</div>
+            <div><strong>Weight:</strong> ${shipment.weight_kg ? shipment.weight_kg + ' kg' : '-'}</div>
+            <div><strong>Amount Due:</strong> ${Number.isFinite(Number(shipment.amount_due)) ? 'MAD ' + Number(shipment.amount_due).toFixed(2) : '-'}</div>
+            <div><strong>Amount Paid:</strong> ${Number.isFinite(Number(shipment.amount_paid)) ? 'MAD ' + Number(shipment.amount_paid).toFixed(2) : '-'}</div>
+            <div><strong>Current Handler:</strong> ${formatCurrentHandler(shipment)}</div>
+            <div><strong>Label:</strong> ${labelLink}</div>
+            <div><strong>Sender ID:</strong> ${idLink}</div>
+            <div><strong>Parcel Photo:</strong> ${packageLink}</div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Assign Driver</label>
+          <select id="manage-driver-id" class="form-control form-select scroll-select" size="6">
+            ${getDriverOptionsHtml(shipment.assigned_driver_user_id)}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Update Status</label>
+          <select id="manage-status" class="form-control form-select">
+            ${getStatusOptionsHtml(shipment.status || 'CREATED')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Record Payment</label>
+          <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+            <input type="number" id="manage-amount-paid" class="form-control" style="max-width: 200px;" step="0.01" min="0" value="${Number.isFinite(Number(shipment.amount_due)) ? Number(shipment.amount_due) : ''}">
+            <button type="button" class="btn btn-secondary" onclick="recordPaymentFromModal('${shipment.shipment_id}')">Record Payment</button>
+          </div>
+          <div class="form-help">Use when payment is received by staff or via phone call. Minimum: 15 MAD/kg (min billing weight 20kg).</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notes</label>
+          <textarea id="manage-notes" class="form-control" rows="3">${shipment.notes || ''}</textarea>
+        </div>
+      `, [
+        { label: 'Close', class: 'btn-secondary', onclick: 'hideModal()' },
+        { label: 'Save Changes', class: 'btn-primary', onclick: `saveShipmentChanges('${shipment.shipment_id}')` },
+        { label: 'Void Shipment', class: 'btn-danger', onclick: `confirmVoidShipment('${shipment.shipment_id}')` }
+      ]);
+    }
+
+    async function saveShipmentChanges(shipmentId) {
+      const shipment = shipmentsById[normalizeId(shipmentId)];
+      if (!shipment) {
+        showError('Shipment not found');
+        return;
+      }
+
+      const driverId = normalizeId(document.getElementById('manage-driver-id').value);
+      const newStatus = document.getElementById('manage-status').value;
+      const notes = document.getElementById('manage-notes').value || '';
+
+      try {
+        showLoading('Saving changes...');
+
+        if (driverId && driverId !== normalizeId(shipment.assigned_driver_user_id)) {
+          await window.ShipTrack.assignDriver(shipment.shipment_id, driverId);
+        }
+
+        if (newStatus && newStatus !== shipment.status) {
+          await window.ShipTrack.setShipmentStatus(shipment.shipment_id, newStatus);
+        }
+
+        if ((notes || '') !== (shipment.notes || '')) {
+          await window.ShipTrack.updateShipmentNotes(shipment.shipment_id, notes);
+        }
+
+        showSuccess('Shipment updated');
+        hideModal();
+        loadAllShipments();
+      } catch (error) {
+        showError(error.message || 'Failed to update shipment');
+      } finally {
+        hideLoading();
+      }
+    }
+
+    function confirmVoidShipment(shipmentId) {
+      showConfirm('Void Shipment', 'Are you sure you want to void this shipment?', () => voidShipment(shipmentId));
+    }
+
+    async function recordPaymentFromModal(shipmentId) {
+      const amountInput = document.getElementById('manage-amount-paid');
+      const amount = amountInput ? amountInput.value : '';
+
+      try {
+        showLoading('Recording payment...');
+        const response = await window.ShipTrack.recordPayment(shipmentId, amount);
+        hideLoading();
+
+        if (response.success) {
+          showSuccess('Payment recorded');
+          hideModal();
+          loadAllShipments();
+        } else {
+          showError(response.error || 'Failed to record payment');
+        }
+      } catch (error) {
+        hideLoading();
+        showError(error.message || 'Failed to record payment');
+      }
+    }
+
+    async function voidShipment(shipmentId) {
+      try {
+        showLoading('Voiding shipment...');
+        await window.ShipTrack.setShipmentStatus(shipmentId, 'VOIDED');
+        showSuccess('Shipment voided');
+        hideModal();
+        loadAllShipments();
+      } catch (error) {
+        showError(error.message || 'Failed to void shipment');
+      } finally {
+        hideLoading();
+      }
+    }
+
+    async function loadTierPricing() {
+      const keys = [
+        'b2c_rate_per_kg',
+        'b2b_tier1_rate_per_kg',
+        'b2b_tier2_rate_per_kg',
+        'b2b_tier3_rate_per_kg'
+      ];
+
+      try {
+        const response = await window.ShipTrack.getSettings(keys);
+        if (response.success && response.settings) {
+          document.getElementById('price-b2c').value = response.settings.b2c_rate_per_kg ?? '';
+          document.getElementById('price-b2b1').value = response.settings.b2b_tier1_rate_per_kg ?? '';
+          document.getElementById('price-b2b2').value = response.settings.b2b_tier2_rate_per_kg ?? '';
+          document.getElementById('price-b2b3').value = response.settings.b2b_tier3_rate_per_kg ?? '';
+        }
+      } catch (error) {
+        console.error('Failed to load tier pricing:', error);
+      }
+    }
+
+    async function saveTierPricing() {
+      const statusEl = document.getElementById('pricing-status');
+      const values = {
+        b2c_rate_per_kg: document.getElementById('price-b2c').value,
+        b2b_tier1_rate_per_kg: document.getElementById('price-b2b1').value,
+        b2b_tier2_rate_per_kg: document.getElementById('price-b2b2').value,
+        b2b_tier3_rate_per_kg: document.getElementById('price-b2b3').value
+      };
+
+      const updates = Object.entries(values).filter(([, value]) => value !== '');
+      if (updates.length === 0) {
+        statusEl.textContent = 'Enter at least one rate to update.';
+        return;
+      }
+
+      try {
+        statusEl.textContent = '';
+        showLoading('Saving pricing...');
+        for (const [key, value] of updates) {
+          await window.ShipTrack.updateSettings(key, value);
+        }
+        showSuccess('Pricing updated');
+        statusEl.textContent = 'Pricing saved successfully.';
+      } catch (error) {
+        statusEl.textContent = 'Failed to save pricing.';
+        showError(error.message || 'Failed to save pricing');
+      } finally {
+        hideLoading();
+      }
+    }
+
+    let adminUsers = [];
+
+    async function loadUsersList() {
+      const select = document.getElementById('role-user-id');
+      if (select) {
+        select.innerHTML = '<option>Loading...</option>';
+      }
+
+      try {
+        const response = await window.ShipTrack.getUsers();
+        if (response.success) {
+          adminUsers = response.users || [];
+          renderUserOptions();
+          updateDriverSelects();
+        } else {
+          showError(response.error || 'Failed to load users');
+        }
+      } catch (error) {
+        console.error('Error loading users:', error);
+        showError('Failed to load users');
+      }
+    }
+
+    function refreshUserList() {
+      loadUsersList();
+    }
+
+    function renderUserOptions() {
+      const select = document.getElementById('role-user-id');
+      if (!select) return;
+
+      const sorted = [...adminUsers].sort((a, b) => {
+        const nameA = (a.full_name || '').toLowerCase();
+        const nameB = (b.full_name || '').toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+
+      const options = ['<option value="">Select a user</option>'];
+      sorted.forEach((user) => {
+        const statusLabel = user.is_active === false ? 'Inactive' : 'Active';
+        const label = `${user.full_name || 'Unnamed'} (${user.role || 'UNKNOWN'}, ${statusLabel}) - ${user.phone || '-'}`;
+        options.push(`<option value="${user.user_id}">${label}</option>`);
+      });
+
+      select.innerHTML = options.join('');
+    }
+
+    function getDriverOptionsHtml(selectedId) {
+      const drivers = adminUsers.filter((user) => user.role === 'DRIVER' && user.is_active !== false);
+      if (drivers.length === 0) {
+        return '<option value="">No active drivers found</option>';
+      }
+
+      return drivers.map((driver) => {
+        const id = driver.user_id || '';
+        const label = `${driver.full_name || 'Unnamed'} (${driver.phone || '-'})`;
+        const selected = id && String(id) === String(selectedId || '') ? 'selected' : '';
+        return `<option value="${id}" ${selected}>${label}</option>`;
+      }).join('');
+    }
+
+    function updateDriverSelects() {
+      updateDriverSelect('assign-driver-id');
+      updateDriverSelect('manage-driver-id');
+    }
+
+    function getShipmentOptionsHtml(selectedId) {
+      if (!allShipments || allShipments.length === 0) {
+        return '<option value="">No shipments available</option>';
+      }
+
+      const sorted = [...allShipments].sort((a, b) => {
+        const dateA = new Date(a.created_at || 0);
+        const dateB = new Date(b.created_at || 0);
+        return dateB - dateA;
+      });
+
+      return sorted.map((shipment) => {
+        const id = normalizeId(shipment.shipment_id);
+        const label = `${shipment.tracking_number || id} - ${shipment.customer_name || 'Unknown'}`;
+        const selected = id && String(id) === String(selectedId || '') ? 'selected' : '';
+        return `<option value="${id}" ${selected}>${label}</option>`;
+      }).join('');
+    }
+
+    function updateAssignShipmentSelect() {
+      const select = document.getElementById('assign-shipment-id');
+      if (!select) return;
+      const current = select.value;
+      select.innerHTML = getShipmentOptionsHtml(current);
+      if (current) {
+        select.value = current;
+      }
+    }
+
+    function updateDriverSelect(selectId) {
+      const select = document.getElementById(selectId);
+      if (!select) return;
+      const current = select.value;
+      select.innerHTML = getDriverOptionsHtml(current);
+      if (current) {
+        select.value = current;
+      }
+    }
+
+    async function createMember() {
+      const name = document.getElementById('member-name').value.trim();
+      const phone = document.getElementById('member-phone').value.trim();
+      const pin = document.getElementById('member-pin').value.trim();
+      const address = document.getElementById('member-address').value.trim();
+      const role = document.getElementById('member-role').value;
+      const active = document.getElementById('member-active').checked;
+      const notes = document.getElementById('member-notes').value.trim();
+      const statusEl = document.getElementById('member-status');
+
+      if (!name || !phone || !pin || !address) {
+        showError('Full name, phone, address, and PIN are required');
+        statusEl.textContent = 'Full name, phone, address, and PIN are required.';
+        return;
+      }
+
+      try {
+        statusEl.textContent = '';
+        showLoading('Creating member...');
+        const response = await window.ShipTrack.createUser({
+          full_name: name,
+          phone: phone,
+          address: address,
+          pin: pin,
+          role: role,
+          is_active: active,
+          notes: notes
+        });
+        hideLoading();
+
+        if (response.success) {
+          showSuccess('Member created');
+          statusEl.textContent = 'Member added successfully.';
+          document.getElementById('member-name').value = '';
+          document.getElementById('member-phone').value = '';
+          document.getElementById('member-address').value = '';
+          document.getElementById('member-pin').value = '';
+          document.getElementById('member-notes').value = '';
+          document.getElementById('member-active').checked = true;
+          loadUsersList();
+        } else {
+          showError(response.error || 'Failed to create member');
+          statusEl.textContent = response.error || 'Failed to create member.';
+        }
+      } catch (error) {
+        hideLoading();
+        showError(error.message || 'Failed to create member');
+        statusEl.textContent = 'Failed to create member.';
+      }
+    }
+
+    async function changeRoleFromPanel() {
+      const userId = document.getElementById('role-user-id').value;
+      const newRole = document.getElementById('role-new').value;
+      const reason = document.getElementById('role-reason').value.trim();
+      const statusEl = document.getElementById('role-status');
+
+      if (!userId) {
+        showError('Please choose a user');
+        statusEl.textContent = 'Select a user to update.';
+        return;
+      }
+
+      if (!reason) {
+        showError('Reason is required');
+        statusEl.textContent = 'Reason is required.';
+        return;
+      }
+
+      try {
+        statusEl.textContent = '';
+        showLoading('Updating role...');
+        const response = await window.ShipTrack.changeUserRole(userId, newRole, reason);
+        hideLoading();
+
+        if (response.success) {
+          showSuccess('Role updated successfully!');
+          statusEl.textContent = 'Role updated.';
+          document.getElementById('role-reason').value = '';
+          loadUsersList();
+        } else {
+          showError(response.error || 'Failed to change role');
+          statusEl.textContent = response.error || 'Failed to change role.';
+        }
+      } catch (error) {
+        hideLoading();
+        showError(error.message || 'Failed to change role');
+        statusEl.textContent = 'Failed to change role.';
+      }
+    }
+
+    function showAssignDriverModal() {
+      if (!adminUsers.length) {
+        loadUsersList();
+      }
+      if (!allShipments.length) {
+        loadAllShipments();
+      }
+      const shipmentOptions = allShipments.length
+        ? getShipmentOptionsHtml('')
+        : '<option value="">Loading shipments...</option>';
+      showModal('Assign Driver', `
+        <div class="form-group">
+          <label class="form-label">Shipment</label>
+          <select id="assign-shipment-id" class="form-control form-select scroll-select" size="7">
+            ${shipmentOptions}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Driver</label>
+          <select id="assign-driver-id" class="form-control form-select scroll-select" size="6">
+            ${getDriverOptionsHtml('')}
+          </select>
+        </div>
+      `, [
+        { label: 'Cancel', class: 'btn-secondary', onclick: 'hideModal()' },
+        { label: 'Assign', class: 'btn-primary', onclick: 'assignDriver()' }
+      ]);
+    }
+
+    async function assignDriver() {
+      const shipmentId = document.getElementById('assign-shipment-id').value;
+      const driverId = document.getElementById('assign-driver-id').value;
+
+      if (!shipmentId) {
+        showError('Please select a shipment');
+        return;
+      }
+
+      try {
+        showLoading('Assigning...');
+        const response = await window.ShipTrack.assignDriver(shipmentId, driverId);
+        hideLoading();
+
+        if (response.success) {
+          showSuccess('Driver assigned!');
+          hideModal();
+        } else {
+          showError(response.error || 'Failed to assign driver');
+        }
+      } catch (error) {
+        hideLoading();
+        showError(error.message);
+      }
+    }
+
+    function showCreateDepartureModal() {
+      showModal('Create Departure', `
+        <div class="form-group">
+          <label class="form-label">Zone</label>
+          <select id="dep-zone" class="form-control form-select">
+            <option>Zone 1</option>
+            <option>Zone 2</option>
+            <option>Zone 3</option>
+            <option>Zone 4</option>
+            <option>Zone 5</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Day of Week</label>
+          <select id="dep-day" class="form-control form-select">
+            <option>Monday</option>
+            <option>Tuesday</option>
+            <option>Wednesday</option>
+            <option>Thursday</option>
+            <option>Friday</option>
+            <option>Saturday</option>
+            <option>Sunday</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Departure Time (HH:MM)</label>
+          <input type="time" id="dep-time" class="form-control">
+        </div>
+      `, [
+        { label: 'Cancel', class: 'btn-secondary', onclick: 'hideModal()' },
+        { label: 'Create', class: 'btn-primary', onclick: 'createDeparture()' }
+      ]);
+    }
+
+    async function createDeparture() {
+      try {
+        showLoading('Creating...');
+        const response = await window.ShipTrack.createDeparture({
+          zone: document.getElementById('dep-zone').value,
+          day_of_week: document.getElementById('dep-day').value,
+          departure_time: document.getElementById('dep-time').value
+        });
+        hideLoading();
+
+        if (response.success) {
+          showSuccess('Departure created!');
+          hideModal();
+        } else {
+          showError(response.error || 'Failed to create departure');
+        }
+      } catch (error) {
+        hideLoading();
+        showError(error.message);
+      }
+    }
+
+  </script>
+</body>
+</html>
