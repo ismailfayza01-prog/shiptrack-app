@@ -93,6 +93,14 @@
             <button onclick="releasePackage()" class="btn btn-success btn-block btn-lg">Release Package</button>
           </div>
         </div>
+
+        <div class="card" style="margin-top: 2rem;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+            <h3 style="margin: 0;">My Relay Inventory</h3>
+            <button class="btn btn-sm btn-outline" onclick="loadRelayShipments()">Refresh</button>
+          </div>
+          <div id="relay-shipments-table">Loading...</div>
+        </div>
       </div>
     </section>
   </main>
@@ -140,6 +148,35 @@
       document.getElementById('login-view').style.display = 'none';
       document.getElementById('dashboard-view').style.display = 'block';
       displayUserInfo('header-user');
+      loadRelayShipments();
+    }
+
+    async function loadRelayShipments() {
+      const container = document.getElementById('relay-shipments-table');
+      if (!container) return;
+
+      try {
+        const response = await window.ShipTrack.getRelayShipments();
+        if (!response.success) {
+          container.innerHTML = '<p style="color: var(--danger);">Failed to load shipments</p>';
+          return;
+        }
+
+        const shipments = response.shipments || [];
+        const columns = [
+          { label: 'Tracking #', field: 'tracking_number' },
+          { label: 'Customer', field: 'customer_name' },
+          { label: 'Phone', field: 'customer_phone' },
+          { label: 'Destination', field: 'destination_city' },
+          { label: 'Bin', field: 'relay_bin' },
+          { label: 'Received', field: 'at_relay_at', formatter: (val) => window.ShipTrack.formatDateShort(val) },
+          { label: 'Status', field: 'status', formatter: (val) => window.ShipTrack.createStatusBadge(val) }
+        ];
+
+        container.innerHTML = createTable(columns, shipments);
+      } catch (error) {
+        container.innerHTML = '<p style="color: var(--danger);">Failed to load shipments</p>';
+      }
     }
 
     async function markInbound() {
@@ -160,6 +197,7 @@
           showSuccess('Package marked as received!');
           document.getElementById('inbound-tracking').value = '';
           document.getElementById('inbound-bin').value = '';
+          loadRelayShipments();
         } else {
           showError(response.error || 'Failed to process');
         }
@@ -194,6 +232,7 @@
           document.getElementById('release-tracking').value = '';
           document.getElementById('release-id-number').value = '';
           document.getElementById('release-id-photo').value = '';
+          loadRelayShipments();
         } else {
           showError(response.error || 'Failed to release');
         }

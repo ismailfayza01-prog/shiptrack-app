@@ -832,9 +832,13 @@ function doGet(e) {
       return handleGetMyShipments(auth);
     }
     
-    if (path === 'my-assignments') {
-      return handleGetMyAssignments(auth);
-    }
+  if (path === 'my-assignments') {
+    return handleGetMyAssignments(auth);
+  }
+
+  if (path === 'relay-shipments' && auth.role === ROLES.RELAY) {
+    return handleGetRelayShipments(auth);
+  }
     
     if (path === 'shipment') {
       return handleGetShipment(e.parameter.shipment_id, auth);
@@ -1571,6 +1575,57 @@ function handleGetMyAssignments(auth) {
     }
   }
   
+  return jsonResponse({
+    success: true,
+    shipments: shipments
+  });
+}
+
+/**
+ * Get relay shipments in possession (RELAY)
+ */
+function handleGetRelayShipments(auth) {
+  if (!checkRole(auth, [ROLES.RELAY])) {
+    return jsonResponse({ error: 'Forbidden' }, 403);
+  }
+
+  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  const shipmentsSheet = ss.getSheetByName(TABS.SHIPMENTS);
+  const shipmentsData = shipmentsSheet.getDataRange().getValues();
+  const relayLocation = getUserAddress(ss, auth.user_id);
+
+  const shipments = [];
+
+  for (let i = 1; i < shipmentsData.length; i++) {
+    const status = shipmentsData[i][17];
+    if (status !== STATUS.AT_RELAY_AVAILABLE) {
+      continue;
+    }
+
+    const handlerUserId = shipmentsData[i][38];
+    const handlerRole = shipmentsData[i][39];
+    const handlerLocation = shipmentsData[i][40];
+    const matchesRelay = idsEqual(handlerUserId, auth.user_id) ||
+      (handlerRole === ROLES.RELAY && relayLocation && handlerLocation === relayLocation);
+
+    if (!matchesRelay) {
+      continue;
+    }
+
+    shipments.push({
+      shipment_id: shipmentsData[i][0],
+      tracking_number: shipmentsData[i][1],
+      customer_name: shipmentsData[i][5],
+      customer_phone: shipmentsData[i][6],
+      destination_zone: shipmentsData[i][7],
+      destination_city: shipmentsData[i][8],
+      relay_bin: shipmentsData[i][28],
+      at_relay_at: shipmentsData[i][27],
+      status: status,
+      customer_id: shipmentsData[i][43]
+    });
+  }
+
   return jsonResponse({
     success: true,
     shipments: shipments

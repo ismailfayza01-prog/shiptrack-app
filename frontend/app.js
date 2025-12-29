@@ -296,14 +296,26 @@ async function getMyShipments() {
 /**
  * Get driver's assignments
  */
-async function getMyAssignments() {
-  try {
-    return await apiGet("my-assignments")
-  } catch (error) {
-    console.error("Get assignments error:", error)
-    throw error
+  async function getMyAssignments() {
+    try {
+      return await apiGet("my-assignments")
+    } catch (error) {
+      console.error("Get assignments error:", error)
+      throw error
+    }
   }
-}
+
+  /**
+   * Get relay shipments (relay)
+   */
+  async function getRelayShipments() {
+    try {
+      return await apiGet("relay-shipments")
+    } catch (error) {
+      console.error("Get relay shipments error:", error)
+      throw error
+    }
+  }
 
 /**
  * Get shipment details
@@ -990,8 +1002,9 @@ window.ShipTrack = {
 
   // Shipments
   createShipment,
-  getMyShipments,
-  getMyAssignments,
+    getMyShipments,
+    getMyAssignments,
+    getRelayShipments,
   getShipment,
   trackShipment,
   assignDriver,
