@@ -344,17 +344,30 @@ async function trackShipment(trackingNumber) {
 /**
  * Assign driver to shipment
  */
-async function assignDriver(shipmentId, driverUserId) {
-  try {
-    return await apiPost("assign-driver", {
-      shipment_id: shipmentId,
-      driver_user_id: driverUserId,
-    })
-  } catch (error) {
-    console.error("Assign driver error:", error)
-    throw error
+  async function assignDriver(shipmentId, driverUserId) {
+    try {
+      return await apiPost("assign-driver", {
+        shipment_id: shipmentId,
+        driver_user_id: driverUserId,
+      })
+    } catch (error) {
+      console.error("Assign driver error:", error)
+      throw error
+    }
   }
-}
+
+  async function assignRelay(shipmentId, relayUserId, relayBin = "") {
+    try {
+      return await apiPost("assign-relay", {
+        shipment_id: shipmentId,
+        relay_user_id: relayUserId,
+        relay_bin: relayBin,
+      })
+    } catch (error) {
+      console.error("Assign relay error:", error)
+      throw error
+    }
+  }
 
 /**
  * Verify pickup QR code
@@ -1007,7 +1020,8 @@ window.ShipTrack = {
     getRelayShipments,
   getShipment,
   trackShipment,
-  assignDriver,
+    assignDriver,
+    assignRelay,
   verifyPickupQR,
   uploadPhoto,
   validatePayment,

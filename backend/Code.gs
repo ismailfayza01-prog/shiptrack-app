@@ -892,12 +892,15 @@ function doPost(e) {
     }
     
     // Route to appropriate handler
-    switch (path) {
-      case 'create-shipment':
-        return handleCreateShipment(data, auth);
-      
-      case 'assign-driver':
-        return handleAssignDriver(data, auth);
+      switch (path) {
+        case 'create-shipment':
+          return handleCreateShipment(data, auth);
+        
+        case 'assign-driver':
+          return handleAssignDriver(data, auth);
+
+        case 'assign-relay':
+          return handleAssignRelay(data, auth);
       
       case 'pickup-verify':
         return handlePickupVerify(data, auth);
@@ -1427,11 +1430,11 @@ function handleGetShipment(shipment_id, auth) {
   
   for (let i = 1; i < shipmentsData.length; i++) {
     if (shipmentsData[i][0] == shipment_id) {
-      shipment = {
-        shipment_id: shipmentsData[i][0],
-        tracking_number: shipmentsData[i][1],
-        pickup_code6: shipmentsData[i][2],
-        created_at: shipmentsData[i][3],
+        shipment = {
+          shipment_id: shipmentsData[i][0],
+          tracking_number: shipmentsData[i][1],
+          pickup_code6: shipmentsData[i][2],
+          created_at: shipmentsData[i][3],
         created_by_user_id: shipmentsData[i][4],
         created_by_user_name: userMap[normalizeId(shipmentsData[i][4])] || '',
         customer_name: shipmentsData[i][5],
@@ -1447,8 +1450,10 @@ function handleGetShipment(shipment_id, auth) {
         assigned_driver_user_id: shipmentsData[i][18],
         pickup_deadline_at: shipmentsData[i][20],
         id_photo_url: shipmentsData[i][22],
-        package_photo_url: shipmentsData[i][23],
-        sender_address: shipmentsData[i][31],
+          package_photo_url: shipmentsData[i][23],
+          at_relay_at: shipmentsData[i][27],
+          relay_bin: shipmentsData[i][28],
+          sender_address: shipmentsData[i][31],
         sender_id_number: shipmentsData[i][32],
         receiver_country: shipmentsData[i][33],
         receiver_zip: shipmentsData[i][34],
@@ -1494,28 +1499,30 @@ function handleGetMyShipments(auth) {
   
   for (let i = 1; i < shipmentsData.length; i++) {
     if (auth.role === ROLES.ADMIN || idsEqual(shipmentsData[i][4], auth.user_id)) {
-      shipments.push({
-        shipment_id: shipmentsData[i][0],
-        tracking_number: shipmentsData[i][1],
-        created_by_user_id: shipmentsData[i][4],
-        created_by_user_name: userMap[normalizeId(shipmentsData[i][4])] || '',
-        customer_name: shipmentsData[i][5],
-        customer_phone: shipmentsData[i][6],
-        destination_zone: shipmentsData[i][7],
-        destination_city: shipmentsData[i][8],
-        weight_kg: shipmentsData[i][9],
-        pricing_tier: shipmentsData[i][10],
-        has_home_delivery: shipmentsData[i][11],
-        status: shipmentsData[i][17],
-        created_at: shipmentsData[i][3],
-        amount_due: shipmentsData[i][12],
-        amount_paid: shipmentsData[i][13],
-        assigned_driver_user_id: shipmentsData[i][18],
-        pickup_deadline_at: shipmentsData[i][20],
-        id_photo_url: shipmentsData[i][22],
-        notes: shipmentsData[i][30],
-        sender_address: shipmentsData[i][31],
-        sender_id_number: shipmentsData[i][32],
+        shipments.push({
+          shipment_id: shipmentsData[i][0],
+          tracking_number: shipmentsData[i][1],
+          created_by_user_id: shipmentsData[i][4],
+          created_by_user_name: userMap[normalizeId(shipmentsData[i][4])] || '',
+          customer_name: shipmentsData[i][5],
+          customer_phone: shipmentsData[i][6],
+          destination_zone: shipmentsData[i][7],
+          destination_city: shipmentsData[i][8],
+          weight_kg: shipmentsData[i][9],
+          pricing_tier: shipmentsData[i][10],
+          has_home_delivery: shipmentsData[i][11],
+          status: shipmentsData[i][17],
+          created_at: shipmentsData[i][3],
+          amount_due: shipmentsData[i][12],
+          amount_paid: shipmentsData[i][13],
+          assigned_driver_user_id: shipmentsData[i][18],
+          pickup_deadline_at: shipmentsData[i][20],
+          id_photo_url: shipmentsData[i][22],
+          at_relay_at: shipmentsData[i][27],
+          relay_bin: shipmentsData[i][28],
+          notes: shipmentsData[i][30],
+          sender_address: shipmentsData[i][31],
+          sender_id_number: shipmentsData[i][32],
         receiver_country: shipmentsData[i][33],
         receiver_zip: shipmentsData[i][34],
         receiver_phone: shipmentsData[i][35],
@@ -1679,6 +1686,84 @@ function handleAssignDriver(data, auth) {
   return jsonResponse({
     success: true,
     message: 'Driver assigned successfully'
+  });
+}
+
+/**
+ * Assign relay point to shipment (ADMIN)
+ */
+function handleAssignRelay(data, auth) {
+  if (!checkRole(auth, [ROLES.ADMIN])) {
+    return jsonResponse({ error: 'Forbidden' }, 403);
+  }
+
+  const { shipment_id, relay_user_id, relay_bin } = data;
+  if (!shipment_id || !relay_user_id) {
+    return jsonResponse({ error: 'Missing required fields' }, 400);
+  }
+
+  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  const usersSheet = ss.getSheetByName(TABS.USERS);
+  const usersData = usersSheet.getDataRange().getValues();
+
+  let relayUser = null;
+  for (let i = 1; i < usersData.length; i++) {
+    if (idsEqual(usersData[i][0], relay_user_id)) {
+      relayUser = {
+        user_id: usersData[i][0],
+        role: usersData[i][4],
+        address: usersData[i][9]
+      };
+      break;
+    }
+  }
+
+  if (!relayUser) {
+    return jsonResponse({ error: 'Relay user not found' }, 404);
+  }
+  if (relayUser.role !== ROLES.RELAY) {
+    return jsonResponse({ error: 'Selected user is not a relay point' }, 400);
+  }
+
+  const shipmentsSheet = ss.getSheetByName(TABS.SHIPMENTS);
+  const shipmentsData = shipmentsSheet.getDataRange().getValues();
+
+  let rowIndex = -1;
+  let currentStatus = '';
+  for (let i = 1; i < shipmentsData.length; i++) {
+    if (shipmentsData[i][0] == shipment_id) {
+      rowIndex = i + 1;
+      currentStatus = shipmentsData[i][17];
+      break;
+    }
+  }
+
+  if (rowIndex === -1) {
+    return jsonResponse({ error: 'Shipment not found' }, 404);
+  }
+
+  const now = new Date();
+  shipmentsSheet.getRange(rowIndex, 18).setValue(STATUS.AT_RELAY_AVAILABLE); // status
+  shipmentsSheet.getRange(rowIndex, 28).setValue(now.toISOString()); // at_relay_at
+  if (relay_bin !== undefined) {
+    shipmentsSheet.getRange(rowIndex, 29).setValue(relay_bin || ''); // relay_bin
+  }
+  shipmentsSheet.getRange(rowIndex, 39).setValue(relayUser.user_id); // current_handler_user_id
+  shipmentsSheet.getRange(rowIndex, 40).setValue(ROLES.RELAY); // current_handler_role
+  shipmentsSheet.getRange(rowIndex, 41).setValue(relayUser.address || ''); // current_handler_location
+  shipmentsSheet.getRange(rowIndex, 42).setValue(now.toISOString()); // current_handler_at
+
+  logEvent(ss, shipment_id, 'RELAY_ASSIGNED', auth.user_id, null, relay_user_id,
+           { relay_bin: relay_bin || '', relay_location: relayUser.address || '' },
+           'Relay assigned by ' + auth.full_name);
+  if (currentStatus !== STATUS.AT_RELAY_AVAILABLE) {
+    logEvent(ss, shipment_id, 'STATUS_CHANGE', auth.user_id, currentStatus, STATUS.AT_RELAY_AVAILABLE,
+             null, 'Status updated by admin relay assignment');
+  }
+
+  return jsonResponse({
+    success: true,
+    message: 'Relay assigned successfully'
   });
 }
 

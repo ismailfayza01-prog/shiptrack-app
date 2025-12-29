@@ -237,13 +237,14 @@
           </div>
 
           <!-- Quick Actions -->
-          <div class="card admin-card">
-            <h3 style="margin-bottom: 1.5rem;">Quick Actions</h3>
-            <div class="admin-action-row">
-              <button onclick="showAssignDriverModal()" class="btn btn-primary">Assign Driver</button>
-              <button onclick="showCreateDepartureModal()" class="btn btn-secondary">Add Departure</button>
+            <div class="card admin-card">
+              <h3 style="margin-bottom: 1.5rem;">Quick Actions</h3>
+              <div class="admin-action-row">
+                <button onclick="showAssignDriverModal()" class="btn btn-primary">Assign Driver</button>
+                <button onclick="showAssignRelayModal()" class="btn btn-secondary">Assign Relay</button>
+                <button onclick="showCreateDepartureModal()" class="btn btn-secondary">Add Departure</button>
+              </div>
             </div>
-          </div>
 
           <!-- Statistics -->
           <div class="card admin-card">
@@ -578,6 +579,7 @@
 
         document.getElementById('shipments-table').innerHTML = createTable(columns, shipments || []);
         updateAssignShipmentSelect();
+        updateRelayShipmentSelect();
       }
 
       function indexCustomers(customers) {
@@ -794,12 +796,20 @@
             <div><strong>Parcel Photo:</strong> ${packageLink}</div>
           </div>
         </div>
-        <div class="form-group">
-          <label class="form-label">Assign Driver</label>
-          <select id="manage-driver-id" class="form-control form-select scroll-select" size="6">
-            ${getDriverOptionsHtml(shipment.assigned_driver_user_id)}
-          </select>
-        </div>
+          <div class="form-group">
+            <label class="form-label">Assign Driver</label>
+            <select id="manage-driver-id" class="form-control form-select scroll-select" size="6">
+              ${getDriverOptionsHtml(shipment.assigned_driver_user_id)}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Assign Relay</label>
+            <select id="manage-relay-id" class="form-control form-select scroll-select" size="6">
+              ${getRelayOptionsHtml(shipment.current_handler_user_id)}
+            </select>
+            <input type="text" id="manage-relay-bin" class="form-control" placeholder="Relay bin (optional)" style="margin-top: 0.75rem;" value="${shipment.relay_bin || ''}">
+            <button type="button" class="btn btn-secondary" style="margin-top: 0.75rem;" onclick="assignRelayFromModal('${shipment.shipment_id}')">Assign Relay</button>
+          </div>
         <div class="form-group">
           <label class="form-label">Update Status</label>
           <select id="manage-status" class="form-control form-select">
@@ -1000,24 +1010,40 @@
       select.innerHTML = options.join('');
     }
 
-    function getDriverOptionsHtml(selectedId) {
-      const drivers = adminUsers.filter((user) => user.role === 'DRIVER' && user.is_active !== false);
-      if (drivers.length === 0) {
-        return '<option value="">No active drivers found</option>';
+      function getDriverOptionsHtml(selectedId) {
+        const drivers = adminUsers.filter((user) => user.role === 'DRIVER' && user.is_active !== false);
+        if (drivers.length === 0) {
+          return '<option value="">No active drivers found</option>';
+        }
+
+        return drivers.map((driver) => {
+          const id = driver.user_id || '';
+          const label = `${driver.full_name || 'Unnamed'} (${driver.phone || '-'})`;
+          const selected = id && String(id) === String(selectedId || '') ? 'selected' : '';
+          return `<option value="${id}" ${selected}>${label}</option>`;
+        }).join('');
       }
 
-      return drivers.map((driver) => {
-        const id = driver.user_id || '';
-        const label = `${driver.full_name || 'Unnamed'} (${driver.phone || '-'})`;
-        const selected = id && String(id) === String(selectedId || '') ? 'selected' : '';
-        return `<option value="${id}" ${selected}>${label}</option>`;
-      }).join('');
-    }
+      function getRelayOptionsHtml(selectedId) {
+        const relays = adminUsers.filter((user) => user.role === 'RELAY' && user.is_active !== false);
+        if (relays.length === 0) {
+          return '<option value="">No relay users found</option>';
+        }
 
-    function updateDriverSelects() {
-      updateDriverSelect('assign-driver-id');
-      updateDriverSelect('manage-driver-id');
-    }
+        return relays.map((relay) => {
+          const id = relay.user_id || '';
+          const label = `${relay.full_name || 'Relay'} (${relay.phone || '-'})`;
+          const selected = id && String(id) === String(selectedId || '') ? 'selected' : '';
+          return `<option value="${id}" ${selected}>${label}</option>`;
+        }).join('');
+      }
+
+      function updateDriverSelects() {
+        updateDriverSelect('assign-driver-id');
+        updateDriverSelect('manage-driver-id');
+        updateRelaySelect('assign-relay-id');
+        updateRelaySelect('manage-relay-id');
+      }
 
     function getShipmentOptionsHtml(selectedId) {
       if (!allShipments || allShipments.length === 0) {
@@ -1038,25 +1064,45 @@
       }).join('');
     }
 
-    function updateAssignShipmentSelect() {
-      const select = document.getElementById('assign-shipment-id');
-      if (!select) return;
-      const current = select.value;
-      select.innerHTML = getShipmentOptionsHtml(current);
-      if (current) {
-        select.value = current;
+      function updateAssignShipmentSelect() {
+        const select = document.getElementById('assign-shipment-id');
+        if (!select) return;
+        const current = select.value;
+        select.innerHTML = getShipmentOptionsHtml(current);
+        if (current) {
+          select.value = current;
+        }
       }
-    }
 
-    function updateDriverSelect(selectId) {
-      const select = document.getElementById(selectId);
-      if (!select) return;
-      const current = select.value;
-      select.innerHTML = getDriverOptionsHtml(current);
-      if (current) {
-        select.value = current;
+      function updateRelayShipmentSelect() {
+        const select = document.getElementById('assign-relay-shipment-id');
+        if (!select) return;
+        const current = select.value;
+        select.innerHTML = getShipmentOptionsHtml(current);
+        if (current) {
+          select.value = current;
+        }
       }
-    }
+
+      function updateDriverSelect(selectId) {
+        const select = document.getElementById(selectId);
+        if (!select) return;
+        const current = select.value;
+        select.innerHTML = getDriverOptionsHtml(current);
+        if (current) {
+          select.value = current;
+        }
+      }
+
+      function updateRelaySelect(selectId) {
+        const select = document.getElementById(selectId);
+        if (!select) return;
+        const current = select.value;
+        select.innerHTML = getRelayOptionsHtml(current);
+        if (current) {
+          select.value = current;
+        }
+      }
 
     async function createMember() {
       const name = document.getElementById('member-name').value.trim();
@@ -1178,13 +1224,106 @@
       ]);
     }
 
-    async function assignDriver() {
-      const shipmentId = document.getElementById('assign-shipment-id').value;
-      const driverId = document.getElementById('assign-driver-id').value;
+      async function assignDriver() {
+        const shipmentId = document.getElementById('assign-shipment-id').value;
+        const driverId = document.getElementById('assign-driver-id').value;
 
       if (!shipmentId) {
         showError('Please select a shipment');
         return;
+      }
+
+      function showAssignRelayModal() {
+        if (!adminUsers.length) {
+          loadUsersList();
+        }
+        if (!allShipments.length) {
+          loadAllShipments();
+        }
+        const shipmentOptions = allShipments.length
+          ? getShipmentOptionsHtml('')
+          : '<option value="">Loading shipments...</option>';
+
+        showModal('Assign Relay', `
+          <div class="form-group">
+            <label class="form-label">Shipment</label>
+            <select id="assign-relay-shipment-id" class="form-control form-select scroll-select" size="7">
+              ${shipmentOptions}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Relay User</label>
+            <select id="assign-relay-id" class="form-control form-select scroll-select" size="6">
+              ${getRelayOptionsHtml('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Relay Bin (optional)</label>
+            <input type="text" id="assign-relay-bin" class="form-control" placeholder="A-12">
+          </div>
+        `, [
+          { label: 'Cancel', class: 'btn-secondary', onclick: 'hideModal()' },
+          { label: 'Assign', class: 'btn-primary', onclick: 'assignRelay()' }
+        ]);
+      }
+
+      async function assignRelay() {
+        const shipmentId = document.getElementById('assign-relay-shipment-id').value;
+        const relayId = document.getElementById('assign-relay-id').value;
+        const relayBin = document.getElementById('assign-relay-bin').value.trim();
+
+        if (!shipmentId) {
+          showError('Please select a shipment');
+          return;
+        }
+        if (!relayId) {
+          showError('Please select a relay user');
+          return;
+        }
+
+        try {
+          showLoading('Assigning relay...');
+          const response = await window.ShipTrack.assignRelay(shipmentId, relayId, relayBin);
+          hideLoading();
+
+          if (response.success) {
+            showSuccess('Relay assigned!');
+            hideModal();
+            loadAllShipments();
+          } else {
+            showError(response.error || 'Failed to assign relay');
+          }
+        } catch (error) {
+          hideLoading();
+          showError(error.message);
+        }
+      }
+
+      async function assignRelayFromModal(shipmentId) {
+        const relayId = document.getElementById('manage-relay-id').value;
+        const relayBin = document.getElementById('manage-relay-bin').value.trim();
+
+        if (!relayId) {
+          showError('Please select a relay user');
+          return;
+        }
+
+        try {
+          showLoading('Assigning relay...');
+          const response = await window.ShipTrack.assignRelay(shipmentId, relayId, relayBin);
+          hideLoading();
+
+          if (response.success) {
+            showSuccess('Relay assigned!');
+            hideModal();
+            loadAllShipments();
+          } else {
+            showError(response.error || 'Failed to assign relay');
+          }
+        } catch (error) {
+          hideLoading();
+          showError(error.message);
+        }
       }
 
       try {
