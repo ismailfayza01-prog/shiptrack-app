@@ -66,9 +66,9 @@
     </section>
 
     <!-- Pickup Workflow Modal -->
-    <div id="workflow-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 3000; overflow-y: auto;">
+    <div id="workflow-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(17,24,39,0.85); z-index: 3000; overflow-y: auto;">
       <div style="min-height: 100vh; padding: 1rem; display: flex; align-items: center; justify-content: center;">
-        <div style="background: white; border-radius: var(--radius-lg); max-width: 600px; width: 100%; padding: 2rem;">
+        <div style="background: var(--surface); border-radius: var(--radius-xl); max-width: 600px; width: 100%; padding: 2rem; border: 1px solid var(--gray-400); box-shadow: var(--shadow-lg);">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
             <h2 style="margin: 0;">Pickup Workflow</h2>
             <button onclick="closeWorkflow()" class="btn btn-sm btn-danger">Cancel</button>
@@ -167,20 +167,23 @@
 
       container.innerHTML = shipments.map((s) => {
         const shipmentId = encodeURIComponent(String(s.shipment_id ?? ''));
-        const tracking = encodeURIComponent(String(s.tracking_number ?? ''));
+        const tracking = encodeURIComponent(String(s.tracking_code ?? s.tracking_number ?? ''));
         const pickupCode = encodeURIComponent(String(s.pickup_code6 ?? ''));
-        const amountDue = Number.isFinite(Number(s.amount_due)) ? Number(s.amount_due) : 0;
+        const amountDue = Number.isFinite(Number(s.final_price)) ? Number(s.final_price) : (Number.isFinite(Number(s.amount_due)) ? Number(s.amount_due) : 0);
         return `
         <div class="card">
           <div style="display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
             <div>
-              <h3 style="margin-bottom: 0.5rem;">${s.tracking_number}</h3>
+              <h3 style="margin-bottom: 0.5rem;">${s.tracking_code || s.tracking_number}</h3>
               <p style="margin: 0; color: var(--gray-600);">${s.customer_name}</p>
             </div>
             <div style="text-align: right;">
               ${window.ShipTrack.createStatusBadge(s.status)}
-              <div style="margin-top: 0.5rem; font-weight: 500; color: ${s.is_overdue ? 'var(--danger)' : 'var(--success)'};">
-                SLA: ${window.ShipTrack.formatTimeRemaining(s.pickup_deadline_at)}
+              <div style="margin-top: 0.5rem; font-weight: 500;">
+                ${window.ShipTrack.formatExpectedEta(s)}
+              </div>
+              <div style="margin-top: 0.25rem; color: var(--gray-600);">
+                ${window.ShipTrack.formatWorstEta(s)}
               </div>
             </div>
           </div>
@@ -192,7 +195,11 @@
             </div>
             <div>
               <p style="color: var(--gray-600); font-size: 0.875rem; margin: 0;">Amount Due</p>
-              <p style="font-weight: 500; margin: 0;">MAD ${Number.isFinite(Number(s.amount_due)) ? Number(s.amount_due).toFixed(2) : '-'}</p>
+              <p style="font-weight: 500; margin: 0;">MAD ${Number.isFinite(Number(s.final_price)) ? Number(s.final_price).toFixed(2) : '-'}</p>
+            </div>
+            <div>
+              <p style="color: var(--gray-600); font-size: 0.875rem; margin: 0;">Service</p>
+              <p style="font-weight: 500; margin: 0;">${s.service_level || 'STANDARD'}</p>
             </div>
             <div>
               <p style="color: var(--gray-600); font-size: 0.875rem; margin: 0;">Payment</p>
@@ -204,7 +211,7 @@
             </div>
           </div>
 
-          ${s.status === 'DRIVER_ASSIGNED' ? `
+          ${s.status === 'CREATED' ? `
             <button
               class="btn btn-primary btn-block"
               data-shipment-id="${shipmentId}"
@@ -337,7 +344,7 @@
             currentShipment.shipmentId = response.shipment.shipment_id;
             currentShipment.tracking = response.shipment.tracking_number;
             currentShipment.pickupCode = response.shipment.pickup_code6 || '';
-            currentShipment.amountDue = response.shipment.amount_due;
+            currentShipment.amountDue = response.shipment.final_price || response.shipment.amount_due;
           }
           showSuccess('Parcel photo uploaded!');
           if (currentShipment) {
@@ -367,12 +374,12 @@
           return;
         }
 
-        showLoading('Finishing pickup...');
-        const response = await window.ShipTrack.setShipmentStatus(currentShipment.shipmentId, 'LOADED');
+        showLoading('Marking as received...');
+        const response = await window.ShipTrack.setShipmentStatus(currentShipment.shipmentId, 'RECEIVED');
         hideLoading();
         
         if (response.success) {
-          showSuccess('Pickup marked as loaded!');
+          showSuccess('Shipment marked as received!');
           closeWorkflow();
           loadAssignments();
         } else {

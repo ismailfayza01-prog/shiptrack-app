@@ -5,14 +5,13 @@ This document describes the complete structure for the ShipTrack MVP Google Shee
 
 ## Spreadsheet Structure
 
-### Required Tabs (9 tabs total)
+### Required Tabs (8 tabs total)
 
 1. **users**
 2. **customers**
 3. **sessions**
 4. **shipments**
 5. **events**
-5. **departures**
 6. **loyalty_tokens**
 7. **settings**
 8. **audit**
@@ -102,7 +101,7 @@ Core shipment records with all tracking and billing information.
 
 ### Column Headers
 ```
-shipment_id | tracking_number | pickup_code6 | created_at | created_by_user_id | customer_name | customer_phone | destination_zone | destination_city | weight_kg | pricing_tier | has_home_delivery | amount_due | amount_paid | payment_validated_at | payment_validated_by_user_id | loyalty_token_id_used | status | assigned_driver_user_id | driver_assigned_at | pickup_deadline_at | qr_scanned_at | id_photo_url | package_photo_url | loaded_at | picked_up_at | in_transit_at | at_relay_at | relay_bin | delivered_at | notes | sender_address | sender_id_number | receiver_country | receiver_zip | receiver_phone | receiver_id_number | receiver_id_photo_url | current_handler_user_id | current_handler_role | current_handler_location | current_handler_at | payment_terms | customer_id
+shipment_id | tracking_number | pickup_code6 | created_at | created_by_user_id | customer_name | customer_phone | destination_zone | destination_city | weight_kg | pricing_tier | has_home_delivery | amount_due | amount_paid | payment_validated_at | payment_validated_by_user_id | loyalty_token_id_used | status | assigned_driver_user_id | driver_assigned_at | pickup_deadline_at | qr_scanned_at | id_photo_url | package_photo_url | loaded_at | picked_up_at | in_transit_at | at_relay_at | relay_bin | delivered_at | notes | sender_address | sender_id_number | receiver_country | receiver_zip | receiver_phone | receiver_id_number | receiver_id_photo_url | current_handler_user_id | current_handler_role | current_handler_location | current_handler_at | payment_terms | customer_id | service_level | received_at | base_price | final_price | expected_delivery_at | worst_case_delivery_at
 ```
 
 ### Column Definitions
@@ -149,18 +148,19 @@ shipment_id | tracking_number | pickup_code6 | created_at | created_by_user_id |
 - **current_handler_location**: Handler address/location (text)
 - **current_handler_at**: Timestamp when handler was updated (ISO 8601)
 - **payment_terms**: PAY_NOW, PAY_ON_PICKUP, or POD (text)
+- **customer_id**: Linked customer record ID (text)
+- **service_level**: STANDARD or EXPRESS (text)
+- **received_at**: Timestamp when parcel is checked-in/received (ISO 8601)
+- **base_price**: Standard price before express multiplier (numeric)
+- **final_price**: Final price after service-level multiplier (numeric)
+- **expected_delivery_at**: Expected delivery date from received_at (ISO 8601)
+- **worst_case_delivery_at**: Worst-case delivery date (STANDARD only) (ISO 8601)
 
 ### Status Values (Enum)
 1. CREATED - Initial creation
-2. PAID - Payment received and validated by driver
-3. PENDING - Payment received by staff, awaiting pickup
-4. DRIVER_ASSIGNED - Driver assigned to pickup
-5. LOADED - Driver marked as loaded in vehicle
-6. PICKED_UP - Driver completed pickup with photos and payment
-7. IN_TRANSIT - Package in transit to destination
-8. AT_RELAY_AVAILABLE - Package at relay point, ready for customer pickup
-9. DELIVERED - Home delivery completed
-9. RELEASED - Released from relay point to customer
+2. RECEIVED - Parcel checked-in at warehouse/relay
+3. DELIVERED - Final handoff completed
+4. CANCELLED - Shipment cancelled
 
 ### Pricing Tier Values
 - B2C: Standard consumer pricing
@@ -171,8 +171,11 @@ shipment_id | tracking_number | pickup_code6 | created_at | created_by_user_id |
 ### Business Rules
 - Minimum billing weight: 20kg (if actual weight < 20, bill at 20kg)
 - Pickup deadline: created_at + 48 hours
-- First order detection: Check if customer_phone appears in any PAID shipment before this one
-- Loyalty token generation: After 10th PAID shipment (excluding token-used orders)
+- First order detection: Check if customer_phone appears in any shipment with payment_validated_at
+- Loyalty token generation: After 10th payment-validated shipment (excluding token-used orders)
+- Standard ETA: expected_delivery_at = received_at + 7 days, worst_case_delivery_at = received_at + 9 days
+- Express ETA: expected_delivery_at = received_at + 6 days (default), no worst_case_delivery_at
+- Express pricing: final_price = base_price x 1.7
 
 ---
 
@@ -213,44 +216,7 @@ event_id | shipment_id | event_type | event_timestamp | actor_user_id | old_valu
 
 ---
 
-## Tab 6: departures
-
-### Purpose
-Scheduled departure times for each zone.
-
-### Column Headers
-```
-departure_id | zone | day_of_week | departure_time | is_active | created_at | notes
-```
-
-### Column Definitions
-- **departure_id**: Unique identifier (numeric)
-- **zone**: Zone 1-5 (text)
-- **day_of_week**: Monday-Sunday (text)
-- **departure_time**: Time in HH:mm format (text, e.g., "14:30")
-- **is_active**: TRUE or FALSE (boolean)
-- **created_at**: Timestamp (ISO 8601)
-- **notes**: Optional notes (text)
-
-### Seed Data Examples
-```
-1 | Zone 1 | Monday | 09:00 | TRUE | 2024-01-01T00:00:00.000Z | Daily service
-2 | Zone 1 | Tuesday | 09:00 | TRUE | 2024-01-01T00:00:00.000Z | Daily service
-3 | Zone 1 | Wednesday | 09:00 | TRUE | 2024-01-01T00:00:00.000Z | Daily service
-4 | Zone 1 | Thursday | 09:00 | TRUE | 2024-01-01T00:00:00.000Z | Daily service
-5 | Zone 1 | Friday | 09:00 | TRUE | 2024-01-01T00:00:00.000Z | Daily service
-6 | Zone 2 | Monday | 10:00 | TRUE | 2024-01-01T00:00:00.000Z | 3x weekly
-7 | Zone 2 | Wednesday | 10:00 | TRUE | 2024-01-01T00:00:00.000Z | 3x weekly
-8 | Zone 2 | Friday | 10:00 | TRUE | 2024-01-01T00:00:00.000Z | 3x weekly
-9 | Zone 3 | Tuesday | 11:00 | TRUE | 2024-01-01T00:00:00.000Z | 2x weekly
-10 | Zone 3 | Friday | 11:00 | TRUE | 2024-01-01T00:00:00.000Z | 2x weekly
-11 | Zone 4 | Wednesday | 12:00 | TRUE | 2024-01-01T00:00:00.000Z | Weekly
-12 | Zone 5 | Thursday | 13:00 | TRUE | 2024-01-01T00:00:00.000Z | Weekly
-```
-
----
-
-## Tab 7: loyalty_tokens
+## Tab 6: loyalty_tokens
 
 ### Purpose
 Tracks loyalty tokens earned by customers.
@@ -271,13 +237,13 @@ token_id | customer_phone | generated_at | generated_after_shipment_id | is_used
 - **notes**: Optional notes (text)
 
 ### Business Rules
-- Generated automatically after 10th PAID shipment
+- Generated automatically after 10th payment-validated shipment
 - One token per 10 qualifying orders
 - Token provides free basic shipment (excludes home delivery fee)
 
 ---
 
-## Tab 8: settings
+## Tab 7: settings
 
 ### Purpose
 Application-wide configuration and pricing formulas.
@@ -321,7 +287,7 @@ relay_points | [{"id": 1, "name": "Downtown Relay", "address": "123 Main St", "p
 
 ---
 
-## Tab 9: audit
+## Tab 8: audit
 
 ### Purpose
 Records sensitive operations for compliance and security.
@@ -336,7 +302,7 @@ audit_id | audit_timestamp | actor_user_id | action_type | entity_type | entity_
 - **audit_timestamp**: When action occurred (ISO 8601)
 - **actor_user_id**: User who performed action (numeric)
 - **action_type**: CREATE, UPDATE, DELETE, ROLE_CHANGE (text)
-- **entity_type**: USER, SHIPMENT, SETTING, DEPARTURE (text)
+- **entity_type**: USER, SHIPMENT, SETTING (text)
 - **entity_id**: ID of affected entity (numeric)
 - **before_state**: State before action as JSON (text or empty)
 - **after_state**: State after action as JSON (text)
@@ -360,7 +326,7 @@ audit_id | audit_timestamp | actor_user_id | action_type | entity_type | entity_
 
 2. **Create Tabs**
    - Rename first tab to "users"
-   - Add 8 more tabs: customers, sessions, shipments, events, departures, loyalty_tokens, settings, audit
+   - Add 7 more tabs: customers, sessions, shipments, events, loyalty_tokens, settings, audit
 
 3. **Add Headers**
    - Copy column headers for each tab from above
@@ -450,3 +416,4 @@ Google Sheets doesn't have traditional indexes, but:
 ---
 
 This completes the Google Sheets database structure specification. All frontend and backend code will reference these exact column names and data structures.
+

@@ -135,6 +135,14 @@
               </div>
 
               <div class="form-group">
+                <label class="form-label required">Service Level</label>
+                <select name="service_level" class="form-control form-select" required onchange="updatePricePreview()">
+                  <option value="STANDARD">Standard (J+7)</option>
+                  <option value="EXPRESS">Express (&lt; 7 days)</option>
+                </select>
+              </div>
+
+              <div class="form-group">
                 <label class="form-label">Rate per Kg (min 15 MAD)</label>
                 <input type="number" name="negotiated_rate_per_kg" id="negotiated-rate" class="form-control" step="0.01" min="15" placeholder="Optional" onchange="updatePricePreview()">
                 <span class="form-help">Leave empty to use tier pricing</span>
@@ -181,7 +189,14 @@
 
             <div id="price-preview" style="background-color: var(--gray-100); padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1.5rem;">
               <div style="display: flex; justify-content: space-between;">
-                <span>Estimated Total:</span>
+                <span>Base Price (Standard):</span>
+                <strong id="preview-base">MAD 0.00</strong>
+              </div>
+              <div id="preview-express-row" style="display: none; margin-top: 0.5rem; color: var(--gray-600);">
+                Express multiplier: <strong>×1.7</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-top: 0.75rem;">
+                <span>Final Price:</span>
                 <strong style="font-size: 1.25rem; color: var(--primary);" id="preview-total">MAD 0.00</strong>
               </div>
             </div>
@@ -303,14 +318,25 @@
 
       const weight = parseFloat(form.weight_kg.value) || 0;
       const tier = form.pricing_tier.value;
+      const serviceLevel = form.service_level.value;
       const hasDelivery = form.has_home_delivery.checked;
       const negotiatedRate = form.negotiated_rate_per_kg.value;
 
+      const expressRow = document.getElementById('preview-express-row');
+
       if (weight > 0) {
-        const pricing = window.ShipTrack.calculatePrice(weight, tier, hasDelivery, negotiatedRate);
-        document.getElementById('preview-total').textContent = 'MAD ' + pricing.total.toFixed(2);
+        const pricing = window.ShipTrack.calculatePrice(weight, tier, hasDelivery, negotiatedRate, serviceLevel);
+        document.getElementById('preview-base').textContent = 'MAD ' + pricing.base_price.toFixed(2);
+        document.getElementById('preview-total').textContent = 'MAD ' + pricing.final_price.toFixed(2);
+        if (expressRow) {
+          expressRow.style.display = pricing.service_level === 'EXPRESS' ? 'block' : 'none';
+        }
       } else {
+        document.getElementById('preview-base').textContent = 'MAD 0.00';
         document.getElementById('preview-total').textContent = 'MAD 0.00';
+        if (expressRow) {
+          expressRow.style.display = 'none';
+        }
       }
     }
 
@@ -368,6 +394,7 @@
           receiver_phone: formData.receiver_phone,
           weight_kg: parseFloat(formData.weight_kg),
           pricing_tier: formData.pricing_tier,
+          service_level: formData.service_level,
           has_home_delivery: formData.has_home_delivery,
           payment_received: paymentReceived,
           payment_terms: paymentTerm,
@@ -444,26 +471,19 @@
         return;
       }
 
-      function formatCurrentHandler(shipment) {
-        const role = shipment.current_handler_role ? shipment.current_handler_role.replace(/_/g, ' ') : '';
-        const location = shipment.current_handler_location || '';
-        if (!role && !location) {
-          return '-';
-        }
-        return `${role}${role && location ? ' - ' : ''}${location}`;
-      }
-
       const columns = [
-        { label: 'Tracking #', field: 'tracking_number' },
+        { label: 'Tracking #', field: 'tracking_code' },
         { label: 'Customer', field: 'customer_name' },
-        { label: 'Destination', field: 'destination_city' },
-        { label: 'Handler', field: 'current_handler_location', formatter: (val, row) => formatCurrentHandler(row) },
+        { label: 'Service', field: 'service_level' },
         { label: 'Status', field: 'status', formatter: (val) => window.ShipTrack.createStatusBadge(val) },
+        { label: 'Received', field: 'received_at', formatter: (val) => window.ShipTrack.formatDateShort(val) },
+        { label: 'Expected', field: 'expected_delivery_at', formatter: (_, row) => window.ShipTrack.formatExpectedEta(row) },
+        { label: 'Worst-case', field: 'worst_case_delivery_at', formatter: (_, row) => window.ShipTrack.formatWorstEta(row) },
         {
-          label: 'Amount',
-          field: 'amount_due',
-          formatter: (val) => {
-            const amount = Number(val)
+          label: 'Final Price',
+          field: 'final_price',
+          formatter: (val, row) => {
+            const amount = Number(val || row.final_price)
             return Number.isFinite(amount) ? 'MAD ' + amount.toFixed(2) : '-'
           }
         },

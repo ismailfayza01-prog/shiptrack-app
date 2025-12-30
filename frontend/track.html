@@ -13,7 +13,6 @@
         <a href="index.html" class="nav-brand">ShipTrack</a>
         <ul class="nav-links">
           <li><a href="pricing.html" class="nav-link">Pricing</a></li>
-          <li><a href="departures.html" class="nav-link">Departures</a></li>
           <li><a href="track.html" class="nav-link">Track</a></li>
           <li><a href="staff.html" class="nav-link">Staff Login</a></li>
         </ul>
@@ -55,7 +54,7 @@
 
             <button type="submit" class="btn btn-primary btn-lg btn-block">Track Shipment</button>
           </form>
-          <div id="qr-scan-panel" class="card" style="display: none; margin-top: 1.5rem; border: 1px solid var(--gray-200);">
+          <div id="qr-scan-panel" class="card" style="display: none; margin-top: 1.5rem; border: 1px solid var(--gray-400);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
               <h4 style="margin: 0;">Scan Tracking QR</h4>
               <button type="button" class="btn btn-sm btn-outline" onclick="closeQrScanner()">Close</button>
@@ -101,6 +100,18 @@
             <div>
               <p style="color: var(--gray-600); font-size: 0.875rem; margin-bottom: 0.25rem;">Created</p>
               <p style="font-weight: 500; margin: 0;" id="result-created">-</p>
+            </div>
+            <div>
+              <p style="color: var(--gray-600); font-size: 0.875rem; margin-bottom: 0.25rem;">Received</p>
+              <p style="font-weight: 500; margin: 0;" id="result-received">-</p>
+            </div>
+            <div>
+              <p style="color: var(--gray-600); font-size: 0.875rem; margin-bottom: 0.25rem;">Expected</p>
+              <p style="font-weight: 500; margin: 0;" id="result-expected">-</p>
+            </div>
+            <div>
+              <p style="color: var(--gray-600); font-size: 0.875rem; margin-bottom: 0.25rem;">Worst-case</p>
+              <p style="font-weight: 500; margin: 0;" id="result-worst">-</p>
             </div>
             <div>
               <p style="color: var(--gray-600); font-size: 0.875rem; margin-bottom: 0.25rem;">Current Handler</p>
@@ -293,6 +304,9 @@
       document.getElementById('result-destination').textContent = shipment.destination_city;
       document.getElementById('result-zone').textContent = shipment.destination_zone;
       document.getElementById('result-created').textContent = window.ShipTrack.formatDate(shipment.created_at);
+      document.getElementById('result-received').textContent = window.ShipTrack.formatDateShort(shipment.received_at);
+      document.getElementById('result-expected').textContent = window.ShipTrack.formatExpectedEta(shipment);
+      document.getElementById('result-worst').textContent = window.ShipTrack.formatWorstEta(shipment);
       const handlerRole = shipment.current_handler_role ? shipment.current_handler_role.replace(/_/g, ' ') : '';
       const handlerLocation = shipment.current_handler_location || '';
       document.getElementById('result-handler').textContent =

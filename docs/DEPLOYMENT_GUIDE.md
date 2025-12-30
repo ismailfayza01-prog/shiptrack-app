@@ -20,12 +20,12 @@
 
 2. **Create Tabs**
    - Rename first tab to "users"
-   - Create 7 more tabs (click + at bottom): sessions, shipments, events, departures, loyalty_tokens, settings, audit
+   - Create 6 more tabs (click + at bottom): sessions, shipments, events, loyalty_tokens, settings, audit
 
 3. **Add Headers and Seed Data**
    - Refer to `docs/GOOGLE_SHEETS_SETUP.md` for exact column headers
    - Copy headers to Row 1 of each tab
-   - Add seed data (test users, departures, settings)
+   - Add seed data (test users, settings)
    - Format header rows: Bold, background color, freeze row
 
 ---

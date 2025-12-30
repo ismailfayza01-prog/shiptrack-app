@@ -430,6 +430,21 @@ async function setShipmentStatus(shipmentId, newStatus) {
 }
 
 /**
+ * Update shipment service level (admin)
+ */
+async function updateServiceLevel(shipmentId, serviceLevel) {
+  try {
+    return await apiPost("update-service-level", {
+      shipment_id: shipmentId,
+      service_level: serviceLevel,
+    })
+  } catch (error) {
+    console.error("Update service level error:", error)
+    throw error
+  }
+}
+
+/**
  * Mark package inbound at relay
  */
 async function relayInbound(trackingNumber, binAssignment) {
@@ -477,19 +492,6 @@ async function uploadPhotoByTracking(trackingNumber, photoType, photoBase64) {
 }
 
 /**
- * Get departures schedule
- */
-async function getDepartures(zone = null) {
-  try {
-    const params = zone ? { zone } : {}
-    return await apiGet("departures", params)
-  } catch (error) {
-    console.error("Get departures error:", error)
-    throw error
-  }
-}
-
-/**
  * Get overdue pickups (admin)
  */
 async function getOverduePickups() {
@@ -497,33 +499,6 @@ async function getOverduePickups() {
     return await apiGet("overdue-pickups")
   } catch (error) {
     console.error("Get overdue pickups error:", error)
-    throw error
-  }
-}
-
-/**
- * Create departure schedule (admin)
- */
-async function createDeparture(departureData) {
-  try {
-    return await apiPost("create-departure", departureData)
-  } catch (error) {
-    console.error("Create departure error:", error)
-    throw error
-  }
-}
-
-/**
- * Update departure schedule (admin)
- */
-async function updateDeparture(departureId, isActive) {
-  try {
-    return await apiPost("update-departure", {
-      departure_id: departureId,
-      is_active: isActive,
-    })
-  } catch (error) {
-    console.error("Update departure error:", error)
     throw error
   }
 }
@@ -733,7 +708,7 @@ function fileToBase64(file) {
 /**
  * Calculate shipment price
  */
-function calculatePrice(weightKg, pricingTier, hasHomeDelivery = false, overrideRatePerKg = null) {
+function calculatePrice(weightKg, pricingTier, hasHomeDelivery = false, overrideRatePerKg = null, serviceLevel = "STANDARD") {
   // Minimum billing weight
   const billingWeight = Math.max(weightKg, CONFIG.MINIMUM_WEIGHT_KG || 20)
   const minRate = CONFIG.MIN_RATE_PER_KG || 15
@@ -759,12 +734,19 @@ function calculatePrice(weightKg, pricingTier, hasHomeDelivery = false, override
     total += CONFIG.HOME_DELIVERY_FEE || 5
   }
 
+  const normalizedService = String(serviceLevel || "STANDARD").toUpperCase()
+  const multiplier = normalizedService === "EXPRESS" ? CONFIG.EXPRESS_MULTIPLIER || 1.7 : 1
+  const finalPrice = total * multiplier
+
   return {
     billing_weight: billingWeight,
     rate_per_kg: ratePerKg,
     base_cost: billingWeight * ratePerKg,
     home_delivery_fee: hasHomeDelivery ? CONFIG.HOME_DELIVERY_FEE || 5 : 0,
     total: total,
+    base_price: total,
+    final_price: Number.isFinite(finalPrice) ? Number(finalPrice.toFixed(2)) : total,
+    service_level: normalizedService,
   }
 }
 
@@ -792,6 +774,29 @@ function formatDateShort(dateString) {
   return date.toLocaleDateString()
 }
 
+function formatExpectedEta(shipment) {
+  if (!shipment || !shipment.received_at) {
+    return "ETA pending (awaiting receipt)"
+  }
+  const service = String(shipment.service_level || "STANDARD").toUpperCase()
+  const expected = shipment.expected_delivery_at
+  if (service === "EXPRESS") {
+    return `Express: ${formatDateShort(expected)} (< 7 days)`
+  }
+  return `Expected: ${formatDateShort(expected)} (J+7)`
+}
+
+function formatWorstEta(shipment) {
+  if (!shipment || !shipment.received_at) {
+    return "ETA pending (awaiting receipt)"
+  }
+  const service = String(shipment.service_level || "STANDARD").toUpperCase()
+  if (service === "EXPRESS") {
+    return ""
+  }
+  const worst = shipment.worst_case_delivery_at
+  return `Worst-case: ${formatDateShort(worst)} (J+9)`
+}
 /**
  * Calculate time remaining
  */
@@ -929,16 +934,9 @@ function clearFormErrors(formId) {
 function getStatusBadgeClass(status) {
   const statusMap = {
     CREATED: "badge-secondary",
-    PAID: "badge-success",
-    PENDING: "badge-warning",
-    DRIVER_ASSIGNED: "badge-info",
-    LOADED: "badge-info",
-    PICKED_UP: "badge-primary",
-    IN_TRANSIT: "badge-primary",
-    AT_RELAY_AVAILABLE: "badge-warning",
+    RECEIVED: "badge-info",
     DELIVERED: "badge-success",
-    RELEASED: "badge-success",
-    VOIDED: "badge-danger",
+    CANCELLED: "badge-danger",
   }
 
   return statusMap[status] || "badge-secondary"
@@ -1026,16 +1024,12 @@ window.ShipTrack = {
   uploadPhoto,
   validatePayment,
   setShipmentStatus,
+  updateServiceLevel,
 
   // Relay
   relayInbound,
   relayRelease,
   uploadPhotoByTracking,
-
-  // Departures
-  getDepartures,
-  createDeparture,
-  updateDeparture,
 
   // Admin
   getOverduePickups,
@@ -1060,6 +1054,8 @@ window.ShipTrack = {
   // Utilities
   formatDate,
   formatDateShort,
+  formatExpectedEta,
+  formatWorstEta,
   getTimeRemaining,
   formatTimeRemaining,
   validatePhone,
@@ -1076,3 +1072,4 @@ window.ShipTrack = {
   loadFromLocalStorage,
   removeFromLocalStorage,
 }
+

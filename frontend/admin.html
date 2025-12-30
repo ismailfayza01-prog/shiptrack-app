@@ -5,48 +5,45 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin Dashboard - ShipTrack MVP</title>
   <link rel="stylesheet" href="style.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     body.admin-page {
-      font-family: "Space Grotesk", "Segoe UI", sans-serif;
-      background: linear-gradient(160deg, #f6f4ef 0%, #f2f8f6 50%, #f7f9ff 100%);
-      color: #1f2933;
+      color: var(--gray-900);
     }
 
     .admin-hero {
-      background: linear-gradient(120deg, #0f766e 0%, #0891b2 55%, #0ea5a4 100%);
-      color: #f8fafc;
-      border-radius: 1.25rem;
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.95) 0%, rgba(245, 158, 11, 0.85) 100%);
+      color: #ffffff;
+      border-radius: var(--radius-xl);
       padding: 2.5rem;
       position: relative;
       overflow: hidden;
-      box-shadow: 0 20px 40px rgba(15, 118, 110, 0.2);
+      box-shadow: var(--shadow-xl);
       margin-bottom: 2.5rem;
+      border: 1px solid rgba(245, 158, 11, 0.35);
     }
 
     .admin-hero::after {
       content: "";
       position: absolute;
       inset: 0;
-      background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.25), transparent 55%);
+      background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.18), transparent 60%);
     }
 
     .admin-hero h1 {
-      font-family: "Fraunces", serif;
-      font-size: 2.75rem;
+      font-size: 2.5rem;
       margin: 0 0 0.5rem;
       position: relative;
       z-index: 1;
+      letter-spacing: 0.01em;
     }
 
     .admin-hero p {
       margin: 0;
-      font-size: 1.1rem;
+      font-size: 1.05rem;
       opacity: 0.9;
       position: relative;
       z-index: 1;
+      color: rgba(255, 255, 255, 0.9);
     }
 
     .admin-stack {
@@ -56,14 +53,13 @@
     }
 
     .admin-card {
-      border: 1px solid rgba(15, 118, 110, 0.15);
-      background: #ffffff;
-      box-shadow: 0 12px 20px rgba(15, 23, 42, 0.08);
+      border: 1px solid var(--gray-400);
+      background: var(--surface);
+      box-shadow: var(--shadow-md);
     }
 
     .admin-card h3 {
-      font-family: "Fraunces", serif;
-      color: #0f172a;
+      color: var(--gray-900);
     }
 
     .admin-chip {
@@ -72,23 +68,24 @@
       gap: 0.5rem;
       padding: 0.4rem 0.8rem;
       border-radius: 999px;
-      background: rgba(14, 165, 164, 0.15);
-      color: #0f766e;
+      background: rgba(16, 185, 129, 0.18);
+      color: var(--primary-light);
       font-weight: 600;
       font-size: 0.85rem;
+      border: 1px solid rgba(16, 185, 129, 0.3);
     }
 
     .admin-stat {
-      background: #ffffff;
-      border-radius: 1rem;
+      background: var(--surface);
+      border-radius: var(--radius-lg);
       padding: 1.5rem;
-      border: 1px solid rgba(14, 165, 164, 0.15);
-      box-shadow: 0 10px 18px rgba(14, 165, 164, 0.08);
+      border: 1px solid var(--gray-400);
+      box-shadow: var(--shadow-md);
     }
 
     .admin-stat h4 {
       margin-bottom: 0.4rem;
-      color: #64748b;
+      color: var(--gray-600);
     }
 
     .pricing-grid {
@@ -242,7 +239,6 @@
               <div class="admin-action-row">
                 <button onclick="showAssignDriverModal()" class="btn btn-primary">Assign Driver</button>
                 <button onclick="showAssignRelayModal()" class="btn btn-secondary">Assign Relay</button>
-                <button onclick="showCreateDepartureModal()" class="btn btn-secondary">Add Departure</button>
               </div>
             </div>
 
@@ -448,7 +444,7 @@
                   <tbody>
                     ${response.overdue_shipments.map(s => `
                       <tr>
-                        <td>${s.tracking_number}</td>
+                        <td>${s.tracking_code || s.tracking_number}</td>
                         <td>${s.customer_name}</td>
                         <td>${window.ShipTrack.createStatusBadge(s.status)}</td>
                         <td style="color: var(--danger); font-weight: 600;">${Math.round(s.hours_overdue)}h</td>
@@ -518,7 +514,7 @@
         const filtered = allShipments.filter((s) => {
           return [
             s.shipment_id,
-            s.tracking_number,
+            s.tracking_code || s.tracking_number,
             s.customer_name,
             s.destination_city,
             s.customer_phone,
@@ -542,17 +538,20 @@
             return id ? `<a href="label.html?id=${id}" target="_blank" rel="noopener">${id}</a>` : '-';
           }
         },
-        { label: 'Tracking #', field: 'tracking_number' },
+        { label: 'Tracking #', field: 'tracking_code' },
         { label: 'Customer', field: 'customer_name' },
+        { label: 'Service', field: 'service_level' },
         { label: 'Destination', field: 'destination_city' },
         { label: 'Handler', field: 'current_handler_location', formatter: (_, row) => formatCurrentHandler(row) },
-        { label: 'Created By', field: 'created_by_user_name' },
+        { label: 'Received', field: 'received_at', formatter: (val) => window.ShipTrack.formatDateShort(val) },
+        { label: 'Expected', field: 'expected_delivery_at', formatter: (_, row) => window.ShipTrack.formatExpectedEta(row) },
+        { label: 'Worst-case', field: 'worst_case_delivery_at', formatter: (_, row) => window.ShipTrack.formatWorstEta(row) },
         { label: 'Status', field: 'status', formatter: (val) => window.ShipTrack.createStatusBadge(val) },
         {
-          label: 'Amount',
-          field: 'amount_due',
-          formatter: (val) => {
-            const amount = Number(val);
+          label: 'Final Price',
+          field: 'final_price',
+          formatter: (val, row) => {
+            const amount = Number(val || row.final_price);
             return Number.isFinite(amount) ? 'MAD ' + amount.toFixed(2) : '-';
           }
         },
@@ -661,9 +660,20 @@
             field: 'shipment_id',
             formatter: (val) => val ? `<a href="label.html?id=${val}" target="_blank" rel="noopener">${val}</a>` : '-'
           },
-          { label: 'Tracking #', field: 'tracking_number' },
+          { label: 'Tracking #', field: 'tracking_code' },
+          { label: 'Service', field: 'service_level' },
           { label: 'Status', field: 'status', formatter: (val) => window.ShipTrack.createStatusBadge(val) },
-          { label: 'Created', field: 'created_at', formatter: (val) => window.ShipTrack.formatDateShort(val) },
+          { label: 'Received', field: 'received_at', formatter: (val) => window.ShipTrack.formatDateShort(val) },
+          { label: 'Expected', field: 'expected_delivery_at', formatter: (_, row) => window.ShipTrack.formatExpectedEta(row) },
+          { label: 'Worst-case', field: 'worst_case_delivery_at', formatter: (_, row) => window.ShipTrack.formatWorstEta(row) },
+          {
+            label: 'Final Price',
+            field: 'final_price',
+            formatter: (val, row) => {
+              const amount = Number(val || row.final_price);
+              return Number.isFinite(amount) ? 'MAD ' + amount.toFixed(2) : '-';
+            }
+          },
           { label: 'Delivered', field: 'delivered_at', formatter: (val) => window.ShipTrack.formatDateShort(val) },
           {
             label: 'Parcel Photo',
@@ -730,17 +740,10 @@
 
       const STATUS_OPTIONS = [
         'CREATED',
-        'PAID',
-      'PENDING',
-      'DRIVER_ASSIGNED',
-      'LOADED',
-      'PICKED_UP',
-      'IN_TRANSIT',
-      'AT_RELAY_AVAILABLE',
-      'DELIVERED',
-      'RELEASED',
-      'VOIDED'
-    ];
+        'RECEIVED',
+        'DELIVERED',
+        'CANCELLED'
+      ];
 
     function getStatusOptionsHtml(currentStatus) {
       return STATUS_OPTIONS.map((status) => {
@@ -769,11 +772,12 @@
         ? `<a href="${shipment.package_photo_url}" target="_blank" rel="noopener">View parcel photo</a>`
         : '-';
 
-      showModal(`Manage ${shipment.tracking_number}`, `
-        <div class="card" style="box-shadow: none; border: 1px solid var(--gray-200); margin-bottom: 1.5rem;">
+      showModal(`Manage ${shipment.tracking_code || shipment.tracking_number}`, `
+        <div class="card" style="box-shadow: none; border: 1px solid var(--gray-400); margin-bottom: 1.5rem;">
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
               <div><strong>Shipment ID:</strong> ${shipment.shipment_id || '-'}</div>
               <div><strong>Status:</strong> ${window.ShipTrack.createStatusBadge(shipment.status || '-')}</div>
+              <div><strong>Service Level:</strong> ${shipment.service_level || 'STANDARD'}</div>
               <div><strong>Created By:</strong> ${shipment.created_by_user_name || shipment.created_by_user_id || '-'}</div>
               <div><strong>Customer ID:</strong> ${shipment.customer_id || '-'}</div>
               <div><strong>Customer:</strong> ${shipment.customer_name || '-'}</div>
@@ -788,8 +792,12 @@
             <div><strong>Receiver ID:</strong> ${shipment.receiver_id_number || '-'}</div>
             <div><strong>Receiver ID Photo:</strong> ${shipment.receiver_id_photo_url ? `<a href="${shipment.receiver_id_photo_url}" target="_blank" rel="noopener">View</a>` : '-'}</div>
             <div><strong>Weight:</strong> ${shipment.weight_kg ? shipment.weight_kg + ' kg' : '-'}</div>
-            <div><strong>Amount Due:</strong> ${Number.isFinite(Number(shipment.amount_due)) ? 'MAD ' + Number(shipment.amount_due).toFixed(2) : '-'}</div>
+            <div><strong>Base Price:</strong> ${Number.isFinite(Number(shipment.base_price)) ? 'MAD ' + Number(shipment.base_price).toFixed(2) : '-'}</div>
+            <div><strong>Final Price:</strong> ${Number.isFinite(Number(shipment.final_price)) ? 'MAD ' + Number(shipment.final_price).toFixed(2) : '-'}</div>
             <div><strong>Amount Paid:</strong> ${Number.isFinite(Number(shipment.amount_paid)) ? 'MAD ' + Number(shipment.amount_paid).toFixed(2) : '-'}</div>
+            <div><strong>Received At:</strong> ${window.ShipTrack.formatDateShort(shipment.received_at)}</div>
+            <div><strong>Expected:</strong> ${window.ShipTrack.formatExpectedEta(shipment)}</div>
+            <div><strong>Worst-case:</strong> ${window.ShipTrack.formatWorstEta(shipment)}</div>
             <div><strong>Current Handler:</strong> ${formatCurrentHandler(shipment)}</div>
             <div><strong>Label:</strong> ${labelLink}</div>
             <div><strong>Sender ID:</strong> ${idLink}</div>
@@ -817,9 +825,16 @@
           </select>
         </div>
         <div class="form-group">
+          <label class="form-label">Service Level</label>
+          <select id="manage-service-level" class="form-control form-select">
+            <option value="STANDARD" ${shipment.service_level === 'EXPRESS' ? '' : 'selected'}>Standard (J+7)</option>
+            <option value="EXPRESS" ${shipment.service_level === 'EXPRESS' ? 'selected' : ''}>Express (&lt; 7 days)</option>
+          </select>
+        </div>
+        <div class="form-group">
           <label class="form-label">Record Payment</label>
           <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
-            <input type="number" id="manage-amount-paid" class="form-control" style="max-width: 200px;" step="0.01" min="0" value="${Number.isFinite(Number(shipment.amount_due)) ? Number(shipment.amount_due) : ''}">
+            <input type="number" id="manage-amount-paid" class="form-control" style="max-width: 200px;" step="0.01" min="0" value="${Number.isFinite(Number(shipment.base_price)) ? Number(shipment.base_price) : Number.isFinite(Number(shipment.amount_due)) ? Number(shipment.amount_due) : ''}">
             <button type="button" class="btn btn-secondary" onclick="recordPaymentFromModal('${shipment.shipment_id}')">Record Payment</button>
           </div>
           <div class="form-help">Use when payment is received by staff or via phone call. Minimum: 15 MAD/kg (min billing weight 20kg).</div>
@@ -831,7 +846,7 @@
       `, [
         { label: 'Close', class: 'btn-secondary', onclick: 'hideModal()' },
         { label: 'Save Changes', class: 'btn-primary', onclick: `saveShipmentChanges('${shipment.shipment_id}')` },
-        { label: 'Void Shipment', class: 'btn-danger', onclick: `confirmVoidShipment('${shipment.shipment_id}')` }
+        { label: 'Cancel Shipment', class: 'btn-danger', onclick: `confirmCancelShipment('${shipment.shipment_id}')` }
       ]);
     }
 
@@ -844,6 +859,7 @@
 
       const driverId = normalizeId(document.getElementById('manage-driver-id').value);
       const newStatus = document.getElementById('manage-status').value;
+      const serviceLevel = document.getElementById('manage-service-level').value;
       const notes = document.getElementById('manage-notes').value || '';
 
       try {
@@ -855,6 +871,10 @@
 
         if (newStatus && newStatus !== shipment.status) {
           await window.ShipTrack.setShipmentStatus(shipment.shipment_id, newStatus);
+        }
+
+        if (serviceLevel && serviceLevel !== (shipment.service_level || 'STANDARD')) {
+          await window.ShipTrack.updateServiceLevel(shipment.shipment_id, serviceLevel);
         }
 
         if ((notes || '') !== (shipment.notes || '')) {
@@ -871,8 +891,8 @@
       }
     }
 
-    function confirmVoidShipment(shipmentId) {
-      showConfirm('Void Shipment', 'Are you sure you want to void this shipment?', () => voidShipment(shipmentId));
+    function confirmCancelShipment(shipmentId) {
+      showConfirm('Cancel Shipment', 'Are you sure you want to cancel this shipment?', () => cancelShipment(shipmentId));
     }
 
     async function recordPaymentFromModal(shipmentId) {
@@ -897,15 +917,15 @@
       }
     }
 
-    async function voidShipment(shipmentId) {
+    async function cancelShipment(shipmentId) {
       try {
-        showLoading('Voiding shipment...');
-        await window.ShipTrack.setShipmentStatus(shipmentId, 'VOIDED');
-        showSuccess('Shipment voided');
+        showLoading('Cancelling shipment...');
+        await window.ShipTrack.setShipmentStatus(shipmentId, 'CANCELLED');
+        showSuccess('Shipment cancelled');
         hideModal();
         loadAllShipments();
       } catch (error) {
-        showError(error.message || 'Failed to void shipment');
+        showError(error.message || 'Failed to cancel shipment');
       } finally {
         hideLoading();
       }
@@ -1058,7 +1078,7 @@
 
       return sorted.map((shipment) => {
         const id = normalizeId(shipment.shipment_id);
-        const label = `${shipment.tracking_number || id} - ${shipment.customer_name || 'Unknown'}`;
+        const label = `${shipment.tracking_code || shipment.tracking_number || id} - ${shipment.customer_name || 'Unknown'}`;
         const selected = id && String(id) === String(selectedId || '') ? 'selected' : '';
         return `<option value="${id}" ${selected}>${label}</option>`;
       }).join('');
@@ -1336,62 +1356,6 @@
           hideModal();
         } else {
           showError(response.error || 'Failed to assign driver');
-        }
-      } catch (error) {
-        hideLoading();
-        showError(error.message);
-      }
-    }
-
-    function showCreateDepartureModal() {
-      showModal('Create Departure', `
-        <div class="form-group">
-          <label class="form-label">Zone</label>
-          <select id="dep-zone" class="form-control form-select">
-            <option>Zone 1</option>
-            <option>Zone 2</option>
-            <option>Zone 3</option>
-            <option>Zone 4</option>
-            <option>Zone 5</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Day of Week</label>
-          <select id="dep-day" class="form-control form-select">
-            <option>Monday</option>
-            <option>Tuesday</option>
-            <option>Wednesday</option>
-            <option>Thursday</option>
-            <option>Friday</option>
-            <option>Saturday</option>
-            <option>Sunday</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Departure Time (HH:MM)</label>
-          <input type="time" id="dep-time" class="form-control">
-        </div>
-      `, [
-        { label: 'Cancel', class: 'btn-secondary', onclick: 'hideModal()' },
-        { label: 'Create', class: 'btn-primary', onclick: 'createDeparture()' }
-      ]);
-    }
-
-    async function createDeparture() {
-      try {
-        showLoading('Creating...');
-        const response = await window.ShipTrack.createDeparture({
-          zone: document.getElementById('dep-zone').value,
-          day_of_week: document.getElementById('dep-day').value,
-          departure_time: document.getElementById('dep-time').value
-        });
-        hideLoading();
-
-        if (response.success) {
-          showSuccess('Departure created!');
-          hideModal();
-        } else {
-          showError(response.error || 'Failed to create departure');
         }
       } catch (error) {
         hideLoading();

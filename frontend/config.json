@@ -10,17 +10,15 @@
   "MINIMUM_WEIGHT_KG": 20,
   "MIN_RATE_PER_KG": 15,
   "HOME_DELIVERY_FEE": 5,
+  "STANDARD_EXPECTED_DAYS": 7,
+  "STANDARD_WORST_DAYS": 9,
+  "EXPRESS_MAX_DAYS": 6,
+  "EXPRESS_MULTIPLIER": 1.7,
   "STATUS_VALUES": {
     "CREATED": "Created",
-    "PAID": "Paid",
-    "DRIVER_ASSIGNED": "Driver Assigned",
-    "LOADED": "Loaded",
-    "PICKED_UP": "Picked Up",
-    "IN_TRANSIT": "In Transit",
-    "AT_RELAY_AVAILABLE": "At Relay - Available for Pickup",
+    "RECEIVED": "Received",
     "DELIVERED": "Delivered",
-    "RELEASED": "Released",
-    "VOIDED": "Voided"
+    "CANCELLED": "Cancelled"
   },
   "PRICING_TIERS": {
     "B2C": "B2C Standard",

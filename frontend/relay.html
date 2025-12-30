@@ -196,12 +196,23 @@
 
         const shipments = response.shipments || [];
         const columns = [
-          { label: 'Tracking #', field: 'tracking_number' },
+          { label: 'Tracking #', field: 'tracking_code' },
           { label: 'Customer', field: 'customer_name' },
           { label: 'Phone', field: 'customer_phone' },
+          { label: 'Service', field: 'service_level' },
           { label: 'Destination', field: 'destination_city' },
           { label: 'Bin', field: 'relay_bin' },
-          { label: 'Received', field: 'at_relay_at', formatter: (val) => window.ShipTrack.formatDateShort(val) },
+          { label: 'Received', field: 'received_at', formatter: (val) => window.ShipTrack.formatDateShort(val) },
+          { label: 'Expected', field: 'expected_delivery_at', formatter: (_, row) => window.ShipTrack.formatExpectedEta(row) },
+          { label: 'Worst-case', field: 'worst_case_delivery_at', formatter: (_, row) => window.ShipTrack.formatWorstEta(row) },
+          {
+            label: 'Final Price',
+            field: 'final_price',
+            formatter: (val, row) => {
+              const amount = Number(val || row.final_price);
+              return Number.isFinite(amount) ? 'MAD ' + amount.toFixed(2) : '-';
+            }
+          },
           { label: 'Status', field: 'status', formatter: (val) => window.ShipTrack.createStatusBadge(val) }
         ];
 

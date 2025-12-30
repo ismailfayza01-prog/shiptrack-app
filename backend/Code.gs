@@ -15,7 +15,11 @@ const CONFIG = {
   MINIMUM_WEIGHT_KG: 20,
   MIN_RATE_PER_KG: 15,
   HOME_DELIVERY_FEE: 5,
-  HOME_DELIVERY_COST: 5
+  HOME_DELIVERY_COST: 5,
+  STANDARD_EXPECTED_DAYS: 7,
+  STANDARD_WORST_DAYS: 9,
+  EXPRESS_MAX_DAYS: 6,
+  EXPRESS_MULTIPLIER: 1.7
 };
 
 // Tab names (must match Google Sheets)
@@ -25,7 +29,6 @@ const CONFIG = {
     SHIPMENTS: 'shipments',
     CUSTOMERS: 'customers',
     EVENTS: 'events',
-    DEPARTURES: 'departures',
     LOYALTY_TOKENS: 'loyalty_tokens',
   SETTINGS: 'settings',
   AUDIT: 'audit'
@@ -98,7 +101,13 @@ const EXPECTED_HEADERS = {
       'current_handler_location',
       'current_handler_at',
       'payment_terms',
-      'customer_id'
+      'customer_id',
+      'service_level',
+      'received_at',
+      'base_price',
+      'final_price',
+      'expected_delivery_at',
+      'worst_case_delivery_at'
     ],
     customers: [
       'customer_id',
@@ -119,15 +128,6 @@ const EXPECTED_HEADERS = {
     'old_value',
     'new_value',
     'metadata',
-    'notes'
-  ],
-  departures: [
-    'departure_id',
-    'zone',
-    'day_of_week',
-    'departure_time',
-    'is_active',
-    'created_at',
     'notes'
   ],
   loyalty_tokens: [
@@ -165,16 +165,21 @@ const EXPECTED_HEADERS = {
 // Status values
 const STATUS = {
   CREATED: 'CREATED',
-  PAID: 'PAID',
-  PENDING: 'PENDING',
-  DRIVER_ASSIGNED: 'DRIVER_ASSIGNED',
-  LOADED: 'LOADED',
-  PICKED_UP: 'PICKED_UP',
-  IN_TRANSIT: 'IN_TRANSIT',
-  AT_RELAY_AVAILABLE: 'AT_RELAY_AVAILABLE',
   DELIVERED: 'DELIVERED',
-  RELEASED: 'RELEASED',
-  VOIDED: 'VOIDED'
+  RECEIVED: 'RECEIVED',
+  CANCELLED: 'CANCELLED'
+};
+
+const LEGACY_STATUS_MAP = {
+  PAID: STATUS.CREATED,
+  DRIVER_ASSIGNED: STATUS.CREATED,
+  LOADED: STATUS.RECEIVED,
+  PICKED_UP: STATUS.RECEIVED,
+  IN_TRANSIT: STATUS.RECEIVED,
+  AT_RELAY_AVAILABLE: STATUS.RECEIVED,
+  RELEASED: STATUS.DELIVERED,
+  VOIDED: STATUS.CANCELLED,
+  DEPARTED: STATUS.RECEIVED
 };
 
 // Roles
@@ -200,6 +205,17 @@ function normalizeIdCard(value) {
   return normalizeId(value);
 }
 
+function normalizeShipmentStatus(value) {
+  const raw = String(value || '').trim().toUpperCase();
+  if (!raw) {
+    return STATUS.CREATED;
+  }
+  if (Object.prototype.hasOwnProperty.call(LEGACY_STATUS_MAP, raw)) {
+    return LEGACY_STATUS_MAP[raw];
+  }
+  return Object.values(STATUS).includes(raw) ? raw : raw;
+}
+
 function parseDateSafe(value) {
   if (!value) {
     return null;
@@ -209,6 +225,106 @@ function parseDateSafe(value) {
   }
   const date = new Date(value);
   return isNaN(date.getTime()) ? null : date;
+}
+
+function addDays(date, days) {
+  const base = new Date(date.getTime());
+  base.setDate(base.getDate() + days);
+  return base;
+}
+
+function normalizeServiceLevel(value) {
+  const level = String(value || '').trim().toUpperCase();
+  return level === 'EXPRESS' ? 'EXPRESS' : 'STANDARD';
+}
+
+function computeFinalPrice(basePrice, serviceLevel) {
+  const base = Number(basePrice);
+  if (!isFinite(base)) {
+    return 0;
+  }
+  const multiplier = normalizeServiceLevel(serviceLevel) === 'EXPRESS' ? CONFIG.EXPRESS_MULTIPLIER : 1;
+  const total = base * multiplier;
+  return Number(total.toFixed(2));
+}
+
+function computeSlaDates(receivedAt, serviceLevel) {
+  const receivedDate = parseDateSafe(receivedAt);
+  if (!receivedDate) {
+    return { expected_delivery_at: '', worst_case_delivery_at: '' };
+  }
+
+  const level = normalizeServiceLevel(serviceLevel);
+  if (level === 'EXPRESS') {
+    const expected = addDays(receivedDate, CONFIG.EXPRESS_MAX_DAYS);
+    return { expected_delivery_at: expected.toISOString(), worst_case_delivery_at: '' };
+  }
+
+  const expected = addDays(receivedDate, CONFIG.STANDARD_EXPECTED_DAYS);
+  const worst = addDays(receivedDate, CONFIG.STANDARD_WORST_DAYS);
+  return {
+    expected_delivery_at: expected.toISOString(),
+    worst_case_delivery_at: worst.toISOString()
+  };
+}
+
+function getRowServiceLevel(row) {
+  return normalizeServiceLevel(row[getShipmentColumnIndex('service_level') - 1]);
+}
+
+function getRowBasePrice(row) {
+  const baseRaw = row[getShipmentColumnIndex('base_price') - 1];
+  const amountDue = Number(row[12]);
+  const base = Number(baseRaw);
+  if (isFinite(base)) {
+    return base;
+  }
+  return isFinite(amountDue) ? amountDue : 0;
+}
+
+function getRowFinalPrice(row) {
+  const finalRaw = row[getShipmentColumnIndex('final_price') - 1];
+  const final = Number(finalRaw);
+  if (isFinite(final)) {
+    return final;
+  }
+  return computeFinalPrice(getRowBasePrice(row), getRowServiceLevel(row));
+}
+
+function getRowSlaDates(row, serviceLevel) {
+  const expectedRaw = row[getShipmentColumnIndex('expected_delivery_at') - 1];
+  const worstRaw = row[getShipmentColumnIndex('worst_case_delivery_at') - 1];
+  if (expectedRaw || worstRaw) {
+    return { expected_delivery_at: expectedRaw || '', worst_case_delivery_at: worstRaw || '' };
+  }
+  return computeSlaDates(row[getShipmentColumnIndex('received_at') - 1], serviceLevel);
+}
+
+function runSlaAcceptanceChecks() {
+  const received = new Date('2025-12-01T00:00:00.000Z');
+  const standard = computeSlaDates(received.toISOString(), 'STANDARD');
+  const express = computeSlaDates(received.toISOString(), 'EXPRESS');
+  const expressPrice = computeFinalPrice(100, 'EXPRESS');
+
+  const results = {
+    standard_expected: standard.expected_delivery_at,
+    standard_worst: standard.worst_case_delivery_at,
+    express_expected: express.expected_delivery_at,
+    express_price: expressPrice
+  };
+
+  const ok =
+    String(standard.expected_delivery_at || '').startsWith('2025-12-08') &&
+    String(standard.worst_case_delivery_at || '').startsWith('2025-12-10') &&
+    String(express.expected_delivery_at || '').startsWith('2025-12-07') &&
+    expressPrice === 170;
+
+  Logger.log(JSON.stringify({ ok: ok, results: results }, null, 2));
+  return { ok: ok, results: results };
+}
+
+function getShipmentColumnIndex(header) {
+  return EXPECTED_HEADERS.shipments.indexOf(header) + 1;
 }
 
 function getLatestActivityAt(values) {
@@ -491,7 +607,7 @@ function backfillShipmentCustomerIds(ss) {
   }
 
   const shipmentsData = shipmentsSheet.getDataRange().getValues();
-  const customerIdColumnIndex = EXPECTED_HEADERS.shipments.length;
+  const customerIdColumnIndex = getShipmentColumnIndex('customer_id');
   let updated = 0;
 
   for (let i = 1; i < shipmentsData.length; i++) {
@@ -556,7 +672,8 @@ function seedDemoShipments() {
       pricing_tier: 'B2C',
       has_home_delivery: true,
       payment_terms: 'PAY_NOW',
-      status: STATUS.PAID,
+      service_level: 'STANDARD',
+      status: STATUS.RECEIVED,
       handler_id: staffUserId,
       handler_role: ROLES.STAFF,
       handler_location: staffLocation
@@ -575,6 +692,7 @@ function seedDemoShipments() {
       pricing_tier: 'B2B_TIER_1',
       has_home_delivery: false,
       payment_terms: 'PAY_ON_PICKUP',
+      service_level: 'STANDARD',
       status: STATUS.CREATED,
       handler_id: staffUserId,
       handler_role: ROLES.STAFF,
@@ -594,7 +712,8 @@ function seedDemoShipments() {
       pricing_tier: 'B2C',
       has_home_delivery: true,
       payment_terms: 'PAY_NOW',
-      status: STATUS.PENDING,
+      service_level: 'EXPRESS',
+      status: STATUS.RECEIVED,
       handler_id: staffUserId,
       handler_role: ROLES.STAFF,
       handler_location: staffLocation
@@ -613,7 +732,8 @@ function seedDemoShipments() {
       pricing_tier: 'B2B_TIER_2',
       has_home_delivery: false,
       payment_terms: 'POD',
-      status: STATUS.LOADED,
+      service_level: 'STANDARD',
+      status: STATUS.DELIVERED,
       handler_id: driverUserId || staffUserId,
       handler_role: driverUserId ? ROLES.DRIVER : ROLES.STAFF,
       handler_location: driverUserId ? driverLocation : staffLocation
@@ -632,7 +752,8 @@ function seedDemoShipments() {
       pricing_tier: 'B2B_TIER_3',
       has_home_delivery: false,
       payment_terms: 'PAY_ON_PICKUP',
-      status: STATUS.IN_TRANSIT,
+      service_level: 'EXPRESS',
+      status: STATUS.RECEIVED,
       handler_id: driverUserId || staffUserId,
       handler_role: driverUserId ? ROLES.DRIVER : ROLES.STAFF,
       handler_location: driverUserId ? driverLocation : staffLocation
@@ -651,7 +772,8 @@ function seedDemoShipments() {
       pricing_tier: 'B2C',
       has_home_delivery: true,
       payment_terms: 'PAY_NOW',
-      status: STATUS.AT_RELAY_AVAILABLE,
+      service_level: 'STANDARD',
+      status: STATUS.DELIVERED,
       handler_id: relayUserId || staffUserId,
       handler_role: relayUserId ? ROLES.RELAY : ROLES.STAFF,
       handler_location: relayUserId ? relayLocation : staffLocation,
@@ -680,28 +802,15 @@ function seedDemoShipments() {
       activity_at: createdAt.toISOString()
     });
 
-    const statusTimestamps = {
-      loaded_at: '',
-      picked_up_at: '',
-      in_transit_at: '',
-      at_relay_at: '',
-      delivered_at: ''
-    };
-    if ([STATUS.LOADED, STATUS.PICKED_UP, STATUS.IN_TRANSIT, STATUS.AT_RELAY_AVAILABLE, STATUS.DELIVERED, STATUS.RELEASED].includes(demo.status)) {
-      statusTimestamps.loaded_at = new Date(createdAt.getTime() + 2 * 60 * 60 * 1000).toISOString();
-    }
-    if ([STATUS.PICKED_UP, STATUS.IN_TRANSIT, STATUS.AT_RELAY_AVAILABLE, STATUS.DELIVERED, STATUS.RELEASED].includes(demo.status)) {
-      statusTimestamps.picked_up_at = new Date(createdAt.getTime() + 3 * 60 * 60 * 1000).toISOString();
-    }
-    if ([STATUS.IN_TRANSIT, STATUS.AT_RELAY_AVAILABLE, STATUS.DELIVERED, STATUS.RELEASED].includes(demo.status)) {
-      statusTimestamps.in_transit_at = new Date(createdAt.getTime() + 5 * 60 * 60 * 1000).toISOString();
-    }
-    if ([STATUS.AT_RELAY_AVAILABLE, STATUS.DELIVERED, STATUS.RELEASED].includes(demo.status)) {
-      statusTimestamps.at_relay_at = new Date(createdAt.getTime() + 8 * 60 * 60 * 1000).toISOString();
-    }
-    if ([STATUS.DELIVERED, STATUS.RELEASED].includes(demo.status)) {
-      statusTimestamps.delivered_at = new Date(createdAt.getTime() + 12 * 60 * 60 * 1000).toISOString();
-    }
+    const basePrice = paymentCalc.amount_due;
+    const finalPrice = computeFinalPrice(basePrice, demo.service_level);
+    const receivedAt = [STATUS.RECEIVED, STATUS.DELIVERED].includes(demo.status)
+      ? new Date(createdAt.getTime() + 2 * 60 * 60 * 1000).toISOString()
+      : '';
+    const deliveredAt = demo.status === STATUS.DELIVERED
+      ? addDays(parseDateSafe(receivedAt || createdAt), 6).toISOString()
+      : '';
+    const slaDates = computeSlaDates(receivedAt, demo.service_level);
 
     appendShipmentWithHeaders(shipmentsSheet, {
       shipment_id: generateId(),
@@ -722,18 +831,18 @@ function seedDemoShipments() {
       payment_validated_by_user_id: paymentValidatedAt ? staffUserId : '',
       loyalty_token_id_used: '',
       status: demo.status,
-      assigned_driver_user_id: [STATUS.DRIVER_ASSIGNED, STATUS.LOADED, STATUS.PICKED_UP, STATUS.IN_TRANSIT, STATUS.AT_RELAY_AVAILABLE, STATUS.DELIVERED, STATUS.RELEASED].includes(demo.status) ? (driverUserId || '') : '',
+      assigned_driver_user_id: demo.handler_role === ROLES.DRIVER ? (driverUserId || '') : '',
       driver_assigned_at: driverUserId ? createdAt.toISOString() : '',
       pickup_deadline_at: pickupDeadline.toISOString(),
-      qr_scanned_at: demo.status === STATUS.LOADED ? statusTimestamps.loaded_at : '',
+      qr_scanned_at: receivedAt || '',
       id_photo_url: placeholderIdPhoto,
       package_photo_url: placeholderPackagePhoto,
-      loaded_at: statusTimestamps.loaded_at,
-      picked_up_at: statusTimestamps.picked_up_at,
-      in_transit_at: statusTimestamps.in_transit_at,
-      at_relay_at: statusTimestamps.at_relay_at,
-      relay_bin: demo.status === STATUS.AT_RELAY_AVAILABLE ? 'A-12' : '',
-      delivered_at: statusTimestamps.delivered_at,
+      loaded_at: '',
+      picked_up_at: '',
+      in_transit_at: '',
+      at_relay_at: receivedAt || '',
+      relay_bin: demo.handler_role === ROLES.RELAY ? 'A-12' : '',
+      delivered_at: deliveredAt,
       notes: 'Demo shipment',
       sender_address: demo.sender_address,
       sender_id_number: demo.sender_id_number,
@@ -747,7 +856,13 @@ function seedDemoShipments() {
       current_handler_location: demo.handler_location || '',
       current_handler_at: createdAt.toISOString(),
       payment_terms: demo.payment_terms,
-      customer_id: customerId
+      customer_id: customerId,
+      service_level: demo.service_level,
+      received_at: receivedAt,
+      base_price: basePrice,
+      final_price: finalPrice,
+      expected_delivery_at: slaDates.expected_delivery_at,
+      worst_case_delivery_at: slaDates.worst_case_delivery_at
     });
 
     created += 1;
@@ -794,6 +909,62 @@ function updateCurrentHandler(ss, shipmentsSheet, rowIndex, auth) {
            { role: auth.role, location: location || '' }, 'Handler updated from scan');
 }
 
+function applyReceivedSla(ss, shipmentsSheet, rowIndex, rowData, auth, receivedAtOverride) {
+  const serviceCol = getShipmentColumnIndex('service_level');
+  const receivedCol = getShipmentColumnIndex('received_at');
+  const basePriceCol = getShipmentColumnIndex('base_price');
+  const finalPriceCol = getShipmentColumnIndex('final_price');
+  const expectedCol = getShipmentColumnIndex('expected_delivery_at');
+  const worstCol = getShipmentColumnIndex('worst_case_delivery_at');
+  const statusCol = getShipmentColumnIndex('status');
+
+  const existingReceived = rowData[receivedCol - 1];
+  const receivedAt = existingReceived || receivedAtOverride || new Date().toISOString();
+  const serviceLevel = normalizeServiceLevel(rowData[serviceCol - 1]);
+  const amountDue = Number(rowData[12]);
+  const basePriceRaw = rowData[basePriceCol - 1];
+  const basePrice = isFinite(Number(basePriceRaw)) ? Number(basePriceRaw) : (isFinite(amountDue) ? amountDue : 0);
+  const finalPrice = computeFinalPrice(basePrice, serviceLevel);
+  const sla = computeSlaDates(receivedAt, serviceLevel);
+
+  shipmentsSheet.getRange(rowIndex, statusCol).setValue(STATUS.RECEIVED);
+  shipmentsSheet.getRange(rowIndex, receivedCol).setValue(receivedAt);
+  shipmentsSheet.getRange(rowIndex, basePriceCol).setValue(basePrice);
+  shipmentsSheet.getRange(rowIndex, finalPriceCol).setValue(finalPrice);
+  shipmentsSheet.getRange(rowIndex, expectedCol).setValue(sla.expected_delivery_at);
+  shipmentsSheet.getRange(rowIndex, worstCol).setValue(sla.worst_case_delivery_at);
+
+  updateCurrentHandler(ss, shipmentsSheet, rowIndex, auth);
+  logEvent(ss, rowData[0], 'RECEIVED', auth.user_id, null, STATUS.RECEIVED,
+           { service_level: serviceLevel }, 'Shipment received');
+
+  return { received_at: receivedAt, final_price: finalPrice, expected_delivery_at: sla.expected_delivery_at, worst_case_delivery_at: sla.worst_case_delivery_at };
+}
+
+function applyServiceLevelUpdate(shipmentsSheet, rowIndex, rowData, newServiceLevel) {
+  const serviceCol = getShipmentColumnIndex('service_level');
+  const receivedCol = getShipmentColumnIndex('received_at');
+  const basePriceCol = getShipmentColumnIndex('base_price');
+  const finalPriceCol = getShipmentColumnIndex('final_price');
+  const expectedCol = getShipmentColumnIndex('expected_delivery_at');
+  const worstCol = getShipmentColumnIndex('worst_case_delivery_at');
+
+  const serviceLevel = normalizeServiceLevel(newServiceLevel);
+  const amountDue = Number(rowData[12]);
+  const basePriceRaw = rowData[basePriceCol - 1];
+  const basePrice = isFinite(Number(basePriceRaw)) ? Number(basePriceRaw) : (isFinite(amountDue) ? amountDue : 0);
+  const finalPrice = computeFinalPrice(basePrice, serviceLevel);
+  const sla = computeSlaDates(rowData[receivedCol - 1], serviceLevel);
+
+  shipmentsSheet.getRange(rowIndex, serviceCol).setValue(serviceLevel);
+  shipmentsSheet.getRange(rowIndex, basePriceCol).setValue(basePrice);
+  shipmentsSheet.getRange(rowIndex, finalPriceCol).setValue(finalPrice);
+  shipmentsSheet.getRange(rowIndex, expectedCol).setValue(sla.expected_delivery_at);
+  shipmentsSheet.getRange(rowIndex, worstCol).setValue(sla.worst_case_delivery_at);
+
+  return { service_level: serviceLevel, final_price: finalPrice, expected_delivery_at: sla.expected_delivery_at, worst_case_delivery_at: sla.worst_case_delivery_at };
+}
+
 // ============================================================================
 // MAIN ENTRY POINT
 // ============================================================================
@@ -814,9 +985,6 @@ function doGet(e) {
       return handleTrack(e.parameter.tracking_number);
     }
     
-    if (path === 'departures') {
-      return handleGetDepartures(e.parameter.zone);
-    }
     
     // Protected endpoints (require auth)
     const auth = validateToken(e.parameter.token);
@@ -911,20 +1079,17 @@ function doPost(e) {
       case 'validate-payment':
         return handleValidatePayment(data, auth);
       
-      case 'set-status':
-        return handleSetStatus(data, auth);
+        case 'set-status':
+          return handleSetStatus(data, auth);
+      
+      case 'update-service-level':
+        return handleUpdateServiceLevel(data, auth);
       
       case 'relay-inbound':
         return handleRelayInbound(data, auth);
       
       case 'relay-release':
         return handleRelayRelease(data, auth);
-      
-      case 'create-departure':
-        return handleCreateDeparture(data, auth);
-      
-      case 'update-departure':
-        return handleUpdateDeparture(data, auth);
       
       case 'change-user-role':
         return handleChangeUserRole(data, auth);
@@ -1094,12 +1259,21 @@ function handleTrack(tracking_number) {
   let shipment = null;
   for (let i = 1; i < shipmentsData.length; i++) {
     if (shipmentsData[i][1] === tracking_number) {
+      const serviceLevel = getRowServiceLevel(shipmentsData[i]);
+      const finalPrice = getRowFinalPrice(shipmentsData[i]);
+      const slaDates = getRowSlaDates(shipmentsData[i], serviceLevel);
       shipment = {
         tracking_number: shipmentsData[i][1],
-        status: shipmentsData[i][17],
+        tracking_code: shipmentsData[i][1],
+        status: normalizeShipmentStatus(shipmentsData[i][17]),
         destination_zone: shipmentsData[i][7],
         destination_city: shipmentsData[i][8],
         created_at: shipmentsData[i][3],
+        received_at: shipmentsData[i][45],
+        expected_delivery_at: slaDates.expected_delivery_at,
+        worst_case_delivery_at: slaDates.worst_case_delivery_at,
+        service_level: serviceLevel,
+        final_price: finalPrice,
         current_handler_role: shipmentsData[i][39],
         current_handler_location: shipmentsData[i][40],
         current_handler_at: shipmentsData[i][41],
@@ -1134,36 +1308,6 @@ function handleTrack(tracking_number) {
     success: true,
     shipment: shipment,
     events: events
-  });
-}
-
-/**
- * Get departure schedules (public)
- */
-function handleGetDepartures(zone) {
-  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-  const departuresSheet = ss.getSheetByName(TABS.DEPARTURES);
-  const departuresData = departuresSheet.getDataRange().getValues();
-  
-  const departures = [];
-  
-  for (let i = 1; i < departuresData.length; i++) {
-    if (departuresData[i][4] === true) { // is_active
-      if (!zone || departuresData[i][1] === zone) {
-        departures.push({
-          departure_id: departuresData[i][0],
-          zone: departuresData[i][1],
-          day_of_week: departuresData[i][2],
-          departure_time: departuresData[i][3],
-          notes: departuresData[i][6]
-        });
-      }
-    }
-  }
-  
-  return jsonResponse({
-    success: true,
-    departures: departures
   });
 }
 
@@ -1214,7 +1358,8 @@ function handleCreateShipment(data, auth) {
     receiver_zip,
     receiver_phone,
     payment_terms,
-    amount_paid
+    amount_paid,
+    service_level
   } = data;
   
   // Validation
@@ -1276,6 +1421,7 @@ function handleCreateShipment(data, auth) {
     return jsonResponse({ error: 'Invalid payment terms' }, 400);
   }
   const payment_received = resolvedPaymentTerms === 'PAY_NOW';
+  const resolvedServiceLevel = normalizeServiceLevel(service_level);
   
   // Apply loyalty token if provided
   let token_applied = false;
@@ -1328,15 +1474,18 @@ function handleCreateShipment(data, auth) {
       resolvedAmountPaid = amount_due;
     }
   }
-    const initial_status = payment_received ? STATUS.PENDING : STATUS.CREATED;
-    const handlerLocation = getUserAddress(ss, auth.user_id);
-    const customer_id = upsertCustomerRecord(ss, {
+  const initial_status = STATUS.CREATED;
+  const handlerLocation = getUserAddress(ss, auth.user_id);
+  const customer_id = upsertCustomerRecord(ss, {
       id_number: sender_id_number,
       full_name: customer_name,
       phone: customer_phone,
       activity_at: now.toISOString()
     });
     
+    const base_price = amount_due;
+    const final_price = computeFinalPrice(base_price, resolvedServiceLevel);
+
     // Create shipment
     shipmentsSheet.appendRow([
     shipment_id,
@@ -1382,7 +1531,13 @@ function handleCreateShipment(data, auth) {
       handlerLocation || '',
       now.toISOString(),
       resolvedPaymentTerms,
-      customer_id
+      customer_id,
+      resolvedServiceLevel,
+      '',
+      base_price,
+      final_price,
+      '',
+      ''
     ]);
   
     // Log event
@@ -1409,8 +1564,12 @@ function handleCreateShipment(data, auth) {
         shipment_id: shipment_id,
         customer_id: customer_id,
         tracking_number: tracking_number,
+        tracking_code: tracking_number,
         pickup_code: pickup_code,
         amount_due: amount_due,
+        base_price: base_price,
+        final_price: final_price,
+        service_level: resolvedServiceLevel,
       pickup_deadline_at: pickup_deadline.toISOString()
     }
   });
@@ -1430,9 +1589,14 @@ function handleGetShipment(shipment_id, auth) {
   
   for (let i = 1; i < shipmentsData.length; i++) {
     if (shipmentsData[i][0] == shipment_id) {
+      const serviceLevel = getRowServiceLevel(shipmentsData[i]);
+      const basePrice = getRowBasePrice(shipmentsData[i]);
+      const finalPrice = getRowFinalPrice(shipmentsData[i]);
+      const slaDates = getRowSlaDates(shipmentsData[i], serviceLevel);
         shipment = {
           shipment_id: shipmentsData[i][0],
           tracking_number: shipmentsData[i][1],
+          tracking_code: shipmentsData[i][1],
           pickup_code6: shipmentsData[i][2],
           created_at: shipmentsData[i][3],
         created_by_user_id: shipmentsData[i][4],
@@ -1446,7 +1610,7 @@ function handleGetShipment(shipment_id, auth) {
         has_home_delivery: shipmentsData[i][11],
         amount_due: shipmentsData[i][12],
         amount_paid: shipmentsData[i][13],
-        status: shipmentsData[i][17],
+        status: normalizeShipmentStatus(shipmentsData[i][17]),
         assigned_driver_user_id: shipmentsData[i][18],
         pickup_deadline_at: shipmentsData[i][20],
         id_photo_url: shipmentsData[i][22],
@@ -1465,7 +1629,13 @@ function handleGetShipment(shipment_id, auth) {
         current_handler_location: shipmentsData[i][40],
         current_handler_at: shipmentsData[i][41],
           payment_terms: shipmentsData[i][42],
-          customer_id: shipmentsData[i][43]
+          customer_id: shipmentsData[i][43],
+          service_level: serviceLevel,
+          received_at: shipmentsData[i][45],
+          base_price: basePrice,
+          final_price: finalPrice,
+          expected_delivery_at: slaDates.expected_delivery_at,
+          worst_case_delivery_at: slaDates.worst_case_delivery_at
       };
       rowIndex = i;
       break;
@@ -1499,9 +1669,14 @@ function handleGetMyShipments(auth) {
   
   for (let i = 1; i < shipmentsData.length; i++) {
     if (auth.role === ROLES.ADMIN || idsEqual(shipmentsData[i][4], auth.user_id)) {
+        const serviceLevel = getRowServiceLevel(shipmentsData[i]);
+        const basePrice = getRowBasePrice(shipmentsData[i]);
+        const finalPrice = getRowFinalPrice(shipmentsData[i]);
+        const slaDates = getRowSlaDates(shipmentsData[i], serviceLevel);
         shipments.push({
           shipment_id: shipmentsData[i][0],
           tracking_number: shipmentsData[i][1],
+          tracking_code: shipmentsData[i][1],
           created_by_user_id: shipmentsData[i][4],
           created_by_user_name: userMap[normalizeId(shipmentsData[i][4])] || '',
           customer_name: shipmentsData[i][5],
@@ -1511,7 +1686,7 @@ function handleGetMyShipments(auth) {
           weight_kg: shipmentsData[i][9],
           pricing_tier: shipmentsData[i][10],
           has_home_delivery: shipmentsData[i][11],
-          status: shipmentsData[i][17],
+          status: normalizeShipmentStatus(shipmentsData[i][17]),
           created_at: shipmentsData[i][3],
           amount_due: shipmentsData[i][12],
           amount_paid: shipmentsData[i][13],
@@ -1527,13 +1702,19 @@ function handleGetMyShipments(auth) {
         receiver_zip: shipmentsData[i][34],
         receiver_phone: shipmentsData[i][35],
         receiver_id_number: shipmentsData[i][36],
-        receiver_id_photo_url: shipmentsData[i][37],
-        current_handler_user_id: shipmentsData[i][38],
-        current_handler_role: shipmentsData[i][39],
-        current_handler_location: shipmentsData[i][40],
-        current_handler_at: shipmentsData[i][41],
+          receiver_id_photo_url: shipmentsData[i][37],
+          current_handler_user_id: shipmentsData[i][38],
+          current_handler_role: shipmentsData[i][39],
+          current_handler_location: shipmentsData[i][40],
+          current_handler_at: shipmentsData[i][41],
           payment_terms: shipmentsData[i][42],
-          customer_id: shipmentsData[i][43]
+        customer_id: shipmentsData[i][43],
+        service_level: serviceLevel,
+        received_at: shipmentsData[i][45],
+        base_price: basePrice,
+        final_price: finalPrice,
+        expected_delivery_at: slaDates.expected_delivery_at,
+        worst_case_delivery_at: slaDates.worst_case_delivery_at
       });
     }
   }
@@ -1557,27 +1738,32 @@ function handleGetMyAssignments(auth) {
   const shipmentsData = shipmentsSheet.getDataRange().getValues();
   
   const shipments = [];
-  const now = new Date();
   
   for (let i = 1; i < shipmentsData.length; i++) {
     if (idsEqual(shipmentsData[i][18], auth.user_id)) {
-      const pickup_deadline = new Date(shipmentsData[i][20]);
-      const sla_remaining_ms = pickup_deadline - now;
-      
+      const serviceLevel = getRowServiceLevel(shipmentsData[i]);
+      const basePrice = getRowBasePrice(shipmentsData[i]);
+      const finalPrice = getRowFinalPrice(shipmentsData[i]);
+      const slaDates = getRowSlaDates(shipmentsData[i], serviceLevel);
       shipments.push({
         shipment_id: shipmentsData[i][0],
         tracking_number: shipmentsData[i][1],
+        tracking_code: shipmentsData[i][1],
         pickup_code6: shipmentsData[i][2],
         customer_name: shipmentsData[i][5],
         customer_phone: shipmentsData[i][6],
         destination_zone: shipmentsData[i][7],
-        status: shipmentsData[i][17],
+        status: normalizeShipmentStatus(shipmentsData[i][17]),
         amount_due: shipmentsData[i][12],
         pickup_deadline_at: shipmentsData[i][20],
-          payment_terms: shipmentsData[i][42],
-          customer_id: shipmentsData[i][43],
-        sla_remaining_ms: Math.max(0, sla_remaining_ms),
-        is_overdue: sla_remaining_ms < 0
+        payment_terms: shipmentsData[i][42],
+        customer_id: shipmentsData[i][43],
+        service_level: serviceLevel,
+        received_at: shipmentsData[i][45],
+        base_price: basePrice,
+        final_price: finalPrice,
+        expected_delivery_at: slaDates.expected_delivery_at,
+        worst_case_delivery_at: slaDates.worst_case_delivery_at
       });
     }
   }
@@ -1605,8 +1791,8 @@ function handleGetRelayShipments(auth) {
   const shipments = [];
 
   for (let i = 1; i < shipmentsData.length; i++) {
-    const status = shipmentsData[i][17];
-    if (status !== STATUS.AT_RELAY_AVAILABLE) {
+    const status = normalizeShipmentStatus(shipmentsData[i][17]);
+    if (status !== STATUS.RECEIVED) {
       continue;
     }
 
@@ -1620,9 +1806,14 @@ function handleGetRelayShipments(auth) {
       continue;
     }
 
+    const serviceLevel = getRowServiceLevel(shipmentsData[i]);
+    const basePrice = getRowBasePrice(shipmentsData[i]);
+    const finalPrice = getRowFinalPrice(shipmentsData[i]);
+    const slaDates = getRowSlaDates(shipmentsData[i], serviceLevel);
     shipments.push({
       shipment_id: shipmentsData[i][0],
       tracking_number: shipmentsData[i][1],
+      tracking_code: shipmentsData[i][1],
       customer_name: shipmentsData[i][5],
       customer_phone: shipmentsData[i][6],
       destination_zone: shipmentsData[i][7],
@@ -1630,7 +1821,13 @@ function handleGetRelayShipments(auth) {
       relay_bin: shipmentsData[i][28],
       at_relay_at: shipmentsData[i][27],
       status: status,
-      customer_id: shipmentsData[i][43]
+      customer_id: shipmentsData[i][43],
+      service_level: serviceLevel,
+      received_at: shipmentsData[i][45],
+      base_price: basePrice,
+      final_price: finalPrice,
+      expected_delivery_at: slaDates.expected_delivery_at,
+      worst_case_delivery_at: slaDates.worst_case_delivery_at
     });
   }
 
@@ -1677,7 +1874,6 @@ function handleAssignDriver(data, auth) {
   const now = new Date();
   shipmentsSheet.getRange(rowIndex, 19).setValue(driver_user_id); // assigned_driver_user_id
   shipmentsSheet.getRange(rowIndex, 20).setValue(now.toISOString()); // driver_assigned_at
-  shipmentsSheet.getRange(rowIndex, 18).setValue(STATUS.DRIVER_ASSIGNED); // status
   
   // Log event
   const eventType = oldDriver ? 'DRIVER_REASSIGNED' : 'DRIVER_ASSIGNED';
@@ -1730,11 +1926,9 @@ function handleAssignRelay(data, auth) {
   const shipmentsData = shipmentsSheet.getDataRange().getValues();
 
   let rowIndex = -1;
-  let currentStatus = '';
   for (let i = 1; i < shipmentsData.length; i++) {
     if (shipmentsData[i][0] == shipment_id) {
       rowIndex = i + 1;
-      currentStatus = shipmentsData[i][17];
       break;
     }
   }
@@ -1744,7 +1938,6 @@ function handleAssignRelay(data, auth) {
   }
 
   const now = new Date();
-  shipmentsSheet.getRange(rowIndex, 18).setValue(STATUS.AT_RELAY_AVAILABLE); // status
   shipmentsSheet.getRange(rowIndex, 28).setValue(now.toISOString()); // at_relay_at
   if (relay_bin !== undefined) {
     shipmentsSheet.getRange(rowIndex, 29).setValue(relay_bin || ''); // relay_bin
@@ -1757,11 +1950,6 @@ function handleAssignRelay(data, auth) {
   logEvent(ss, shipment_id, 'RELAY_ASSIGNED', auth.user_id, null, relay_user_id,
            { relay_bin: relay_bin || '', relay_location: relayUser.address || '' },
            'Relay assigned by ' + auth.full_name);
-  if (currentStatus !== STATUS.AT_RELAY_AVAILABLE) {
-    logEvent(ss, shipment_id, 'STATUS_CHANGE', auth.user_id, currentStatus, STATUS.AT_RELAY_AVAILABLE,
-             null, 'Status updated by admin relay assignment');
-  }
-
   return jsonResponse({
     success: true,
     message: 'Relay assigned successfully'
@@ -1845,13 +2033,10 @@ function handlePickupVerify(data, auth) {
              'Driver assigned by scan');
   }
 
-  updateCurrentHandler(ss, shipmentsSheet, rowIndex, auth);
-
-  if ([STATUS.CREATED, STATUS.PAID, STATUS.PENDING, STATUS.DRIVER_ASSIGNED].includes(current_status)) {
-    shipmentsSheet.getRange(rowIndex, 18).setValue(STATUS.LOADED); // status
-    shipmentsSheet.getRange(rowIndex, 25).setValue(now.toISOString()); // loaded_at
-    logEvent(ss, shipment.shipment_id, 'STATUS_CHANGE', auth.user_id, current_status, STATUS.LOADED,
-             null, 'Status updated on first scan by driver');
+  if (current_status !== STATUS.RECEIVED) {
+    applyReceivedSla(ss, shipmentsSheet, rowIndex, shipmentsData[rowIndex - 1], auth, now.toISOString());
+  } else {
+    updateCurrentHandler(ss, shipmentsSheet, rowIndex, auth);
   }
   
   // Log event
@@ -2047,13 +2232,17 @@ function handleValidatePayment(data, auth) {
   shipmentsSheet.getRange(rowIndex, 14).setValue(amount_paid); // amount_paid
   shipmentsSheet.getRange(rowIndex, 15).setValue(now.toISOString()); // payment_validated_at
   shipmentsSheet.getRange(rowIndex, 16).setValue(auth.user_id); // payment_validated_by_user_id
-  shipmentsSheet.getRange(rowIndex, 18).setValue(STATUS.PENDING); // status
 
   if (Math.abs(amount_paid - amount_due) > 0.01) {
     shipmentsSheet.getRange(rowIndex, 13).setValue(amount_paid); // amount_due
     logEvent(ss, shipment_id, 'PRICE_ADJUSTED', auth.user_id, amount_due, amount_paid,
              { reason: 'Negotiated at pickup' }, 'Price adjusted at pickup');
   }
+
+  const serviceLevel = normalizeServiceLevel(shipmentsData[rowIndex - 1][44]);
+  const finalPrice = computeFinalPrice(amount_paid, serviceLevel);
+  shipmentsSheet.getRange(rowIndex, getShipmentColumnIndex('base_price')).setValue(amount_paid);
+  shipmentsSheet.getRange(rowIndex, getShipmentColumnIndex('final_price')).setValue(finalPrice);
   
   // Log event
   logEvent(ss, shipment_id, 'PAYMENT_VALIDATED', auth.user_id, null, null,
@@ -2107,8 +2296,9 @@ function handleRecordPayment(data, auth) {
     return jsonResponse({ error: 'Shipment not found' }, 404);
   }
 
-  if (current_status === STATUS.VOIDED) {
-    return jsonResponse({ error: 'Shipment is voided' }, 400);
+  const normalizedStatus = normalizeShipmentStatus(current_status);
+  if (normalizedStatus === STATUS.CANCELLED) {
+    return jsonResponse({ error: 'Shipment is cancelled' }, 400);
   }
 
   const paid = amount_paid === undefined || amount_paid === null || amount_paid === ''
@@ -2137,15 +2327,18 @@ function handleRecordPayment(data, auth) {
   shipmentsSheet.getRange(rowIndex, 14).setValue(paid); // amount_paid
   shipmentsSheet.getRange(rowIndex, 15).setValue(now.toISOString()); // payment_validated_at
   shipmentsSheet.getRange(rowIndex, 16).setValue(auth.user_id); // payment_validated_by_user_id
-  shipmentsSheet.getRange(rowIndex, 18).setValue(STATUS.PAID); // status
-
   if (Math.abs(paid - amount_due) > 0.01) {
     shipmentsSheet.getRange(rowIndex, 13).setValue(paid); // amount_due
     logEvent(ss, shipment_id, 'PRICE_ADJUSTED', auth.user_id, amount_due, paid,
              { reason: 'Negotiated by staff/admin' }, 'Price adjusted during payment');
   }
 
-  logEvent(ss, shipment_id, 'PAYMENT_VALIDATED', auth.user_id, current_status, STATUS.PENDING,
+  const serviceLevel = normalizeServiceLevel(shipmentsData[rowIndex - 1][44]);
+  const finalPrice = computeFinalPrice(paid, serviceLevel);
+  shipmentsSheet.getRange(rowIndex, getShipmentColumnIndex('base_price')).setValue(paid);
+  shipmentsSheet.getRange(rowIndex, getShipmentColumnIndex('final_price')).setValue(finalPrice);
+
+  logEvent(ss, shipment_id, 'PAYMENT_VALIDATED', auth.user_id, current_status, current_status,
            { amount: paid }, 'Payment recorded by ' + auth.full_name);
 
   checkAndGenerateLoyaltyToken(ss, customer_phone, shipment_id);
@@ -2171,7 +2364,7 @@ function handleSetStatus(data, auth) {
     return jsonResponse({ error: 'Invalid status value' }, 400);
   }
 
-  if (new_status === STATUS.VOIDED && auth.role !== ROLES.ADMIN) {
+  if (new_status === STATUS.CANCELLED && auth.role !== ROLES.ADMIN) {
     return jsonResponse({ error: 'Forbidden' }, 403);
   }
   
@@ -2199,20 +2392,20 @@ function handleSetStatus(data, auth) {
     return jsonResponse({ error: 'Shipment not found' }, 404);
   }
   
-  // Update status
   const now = new Date();
+
+  if (new_status === STATUS.RECEIVED) {
+    applyReceivedSla(ss, shipmentsSheet, rowIndex, shipmentsData[rowIndex - 1], auth, now.toISOString());
+    return jsonResponse({
+      success: true,
+      message: 'Status updated successfully'
+    });
+  }
+
+  // Update status
   shipmentsSheet.getRange(rowIndex, 18).setValue(new_status);
-  
-  // Update timestamp based on status
-  if (new_status === STATUS.LOADED) {
-    shipmentsSheet.getRange(rowIndex, 25).setValue(now.toISOString()); // loaded_at
-  } else if (new_status === STATUS.PICKED_UP) {
-    shipmentsSheet.getRange(rowIndex, 26).setValue(now.toISOString()); // picked_up_at
-  } else if (new_status === STATUS.IN_TRANSIT) {
-    shipmentsSheet.getRange(rowIndex, 27).setValue(now.toISOString()); // in_transit_at
-  } else if (new_status === STATUS.AT_RELAY_AVAILABLE) {
-    shipmentsSheet.getRange(rowIndex, 28).setValue(now.toISOString()); // at_relay_at
-  } else if (new_status === STATUS.DELIVERED || new_status === STATUS.RELEASED) {
+
+  if (new_status === STATUS.DELIVERED) {
     shipmentsSheet.getRange(rowIndex, 30).setValue(now.toISOString()); // delivered_at
   }
   
@@ -2266,9 +2459,8 @@ function handleRelayInbound(data, auth) {
   }
   
   const now = new Date();
-  shipmentsSheet.getRange(rowIndex, 18).setValue(STATUS.AT_RELAY_AVAILABLE);
+  applyReceivedSla(ss, shipmentsSheet, rowIndex, shipmentRow, auth, now.toISOString());
   shipmentsSheet.getRange(rowIndex, 28).setValue(now.toISOString()); // at_relay_at
-  updateCurrentHandler(ss, shipmentsSheet, rowIndex, auth);
   
   if (bin_assignment) {
     shipmentsSheet.getRange(rowIndex, 29).setValue(bin_assignment); // relay_bin
@@ -2279,7 +2471,7 @@ function handleRelayInbound(data, auth) {
   
   return jsonResponse({
     success: true,
-    message: 'Package marked as available at relay'
+    message: 'Package marked as received'
   });
 }
 
@@ -2307,11 +2499,13 @@ function handleRelayRelease(data, auth) {
   
   let rowIndex = -1;
   let shipment_id = null;
+  let shipmentRow = null;
   
   for (let i = 1; i < shipmentsData.length; i++) {
     if (shipmentsData[i][1] === tracking_number) {
       rowIndex = i + 1;
       shipment_id = shipmentsData[i][0];
+      shipmentRow = shipmentsData[i];
       break;
     }
   }
@@ -2321,7 +2515,7 @@ function handleRelayRelease(data, auth) {
   }
   
     const now = new Date();
-    shipmentsSheet.getRange(rowIndex, 18).setValue(release_type);
+    shipmentsSheet.getRange(rowIndex, 18).setValue(STATUS.DELIVERED);
     shipmentsSheet.getRange(rowIndex, 30).setValue(now.toISOString()); // delivered_at
     shipmentsSheet.getRange(rowIndex, 37).setValue(receiver_id_number); // receiver_id_number
     updateCurrentHandler(ss, shipmentsSheet, rowIndex, auth);
@@ -2388,7 +2582,8 @@ function handleDriverClaim(data, auth) {
     return jsonResponse({ error: 'Shipment not found' }, 404);
   }
 
-  if ([STATUS.VOIDED, STATUS.DELIVERED, STATUS.RELEASED].includes(current_status)) {
+  const normalizedStatus = normalizeShipmentStatus(current_status);
+  if ([STATUS.CANCELLED, STATUS.DELIVERED].includes(normalizedStatus)) {
     return jsonResponse({ error: 'Shipment is not available for pickup' }, 400);
   }
 
@@ -2424,7 +2619,11 @@ function handleDriverClaim(data, auth) {
   }
 
   shipmentsSheet.getRange(rowIndex, 22).setValue(now.toISOString()); // qr_scanned_at
-  updateCurrentHandler(ss, shipmentsSheet, rowIndex, auth);
+  if (current_status !== STATUS.RECEIVED) {
+    applyReceivedSla(ss, shipmentsSheet, rowIndex, shipmentsData[rowIndex - 1], auth, now.toISOString());
+  } else {
+    updateCurrentHandler(ss, shipmentsSheet, rowIndex, auth);
+  }
 
   return jsonResponse({
     success: true,
@@ -2448,10 +2647,10 @@ function handleGetOverduePickups() {
   const overdueShipments = [];
   
   for (let i = 1; i < shipmentsData.length; i++) {
-    const status = shipmentsData[i][17];
+    const status = normalizeShipmentStatus(shipmentsData[i][17]);
     const pickup_deadline = new Date(shipmentsData[i][20]);
     
-    if ([STATUS.DRIVER_ASSIGNED, STATUS.LOADED].includes(status) && pickup_deadline < now) {
+    if (status === STATUS.CREATED && pickup_deadline < now) {
       overdueShipments.push({
         shipment_id: shipmentsData[i][0],
         tracking_number: shipmentsData[i][1],
@@ -2727,7 +2926,7 @@ function handleGetCustomerDetail(idNumber) {
       shipment_id: row[0],
       tracking_number: row[1],
       created_at: row[3],
-      status: row[17],
+      status: normalizeShipmentStatus(row[17]),
       destination_zone: row[7],
       destination_city: row[8],
       amount_due: row[12],
@@ -2864,74 +3063,6 @@ function handleCreateUser(data, auth) {
 }
 
 /**
- * Create departure schedule (ADMIN)
- */
-function handleCreateDeparture(data, auth) {
-  if (!checkRole(auth, [ROLES.ADMIN])) {
-    return jsonResponse({ error: 'Forbidden' }, 403);
-  }
-  
-  const { zone, day_of_week, departure_time, notes } = data;
-  
-  if (!zone || !day_of_week || !departure_time) {
-    return jsonResponse({ error: 'Missing required fields' }, 400);
-  }
-  
-  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-  const departuresSheet = ss.getSheetByName(TABS.DEPARTURES);
-  
-  const departure_id = generateId();
-  const now = new Date();
-  
-  departuresSheet.appendRow([
-    departure_id,
-    zone,
-    day_of_week,
-    departure_time,
-    true, // is_active
-    now.toISOString(),
-    notes || ''
-  ]);
-  
-  return jsonResponse({
-    success: true,
-    departure_id: departure_id
-  });
-}
-
-/**
- * Update departure schedule (ADMIN)
- */
-function handleUpdateDeparture(data, auth) {
-  if (!checkRole(auth, [ROLES.ADMIN])) {
-    return jsonResponse({ error: 'Forbidden' }, 403);
-  }
-  
-  const { departure_id, is_active } = data;
-  
-  if (!departure_id || is_active === undefined) {
-    return jsonResponse({ error: 'Missing required fields' }, 400);
-  }
-  
-  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-  const departuresSheet = ss.getSheetByName(TABS.DEPARTURES);
-  const departuresData = departuresSheet.getDataRange().getValues();
-  
-  for (let i = 1; i < departuresData.length; i++) {
-    if (departuresData[i][0] == departure_id) {
-      departuresSheet.getRange(i + 1, 5).setValue(is_active);
-      
-      return jsonResponse({
-        success: true,
-        message: 'Departure schedule updated'
-      });
-    }
-  }
-  
-  return jsonResponse({ error: 'Departure not found' }, 404);
-}
-
-/**
  * Change user role (ADMIN)
  */
 function handleChangeUserRole(data, auth) {
@@ -3063,6 +3194,51 @@ function handleUpdateSettings(data, auth) {
   return jsonResponse({
     success: true,
     message: 'Setting updated successfully'
+  });
+}
+
+/**
+ * Update shipment service level (ADMIN)
+ */
+function handleUpdateServiceLevel(data, auth) {
+  if (!checkRole(auth, [ROLES.ADMIN])) {
+    return jsonResponse({ error: 'Forbidden' }, 403);
+  }
+
+  const { shipment_id, service_level } = data;
+  if (!shipment_id || !service_level) {
+    return jsonResponse({ error: 'Missing required fields' }, 400);
+  }
+
+  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  const shipmentsSheet = ss.getSheetByName(TABS.SHIPMENTS);
+  const shipmentsData = shipmentsSheet.getDataRange().getValues();
+
+  let rowIndex = -1;
+  let rowData = null;
+
+  for (let i = 1; i < shipmentsData.length; i++) {
+    if (shipmentsData[i][0] == shipment_id) {
+      rowIndex = i + 1;
+      rowData = shipmentsData[i];
+      break;
+    }
+  }
+
+  if (rowIndex === -1 || !rowData) {
+    return jsonResponse({ error: 'Shipment not found' }, 404);
+  }
+
+  const update = applyServiceLevelUpdate(shipmentsSheet, rowIndex, rowData, service_level);
+  logEvent(ss, shipment_id, 'SERVICE_LEVEL_UPDATED', auth.user_id, rowData[getShipmentColumnIndex('service_level') - 1], update.service_level,
+           null, 'Service level updated by ' + auth.full_name);
+
+  return jsonResponse({
+    success: true,
+    service_level: update.service_level,
+    final_price: update.final_price,
+    expected_delivery_at: update.expected_delivery_at,
+    worst_case_delivery_at: update.worst_case_delivery_at
   });
 }
 
@@ -3450,8 +3626,8 @@ function checkAndGenerateLoyaltyToken(ss, customer_phone, current_shipment_id) {
   let paidCount = 0;
   
   for (let i = 1; i < shipmentsData.length; i++) {
-    if (shipmentsData[i][6] === customer_phone && 
-        shipmentsData[i][17] === STATUS.PAID &&
+    if (shipmentsData[i][6] === customer_phone &&
+        shipmentsData[i][14] && // payment_validated_at
         !shipmentsData[i][16]) { // no loyalty token used
       paidCount++;
     }

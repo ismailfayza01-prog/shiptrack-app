@@ -46,42 +46,22 @@ Track shipment by tracking number (public).
   "success": true,
   "shipment": {
     "tracking_number": "ST-2024-123456",
-    "status": "IN_TRANSIT",
+    "tracking_code": "ST-2024-123456",
+    "status": "RECEIVED",
     "destination_zone": "Zone 1",
     "destination_city": "New York",
-    "created_at": "2024-01-01T00:00:00.000Z"
+    "created_at": "2024-01-01T00:00:00.000Z",
+    "received_at": "2024-01-01T10:00:00.000Z",
+    "service_level": "STANDARD",
+    "expected_delivery_at": "2024-01-08T10:00:00.000Z",
+    "worst_case_delivery_at": "2024-01-10T10:00:00.000Z",
+    "final_price": 170.0
   },
   "events": [
     {
       "event_type": "SHIPMENT_CREATED",
       "event_timestamp": "2024-01-01T00:00:00.000Z",
       "notes": "Shipment created"
-    }
-  ]
-}
-```
-
----
-
-### Get Departures
-Get departure schedule (public).
-
-**Endpoint:** `GET /?path=departures&zone={zone}`
-
-**Parameters:**
-- `zone` (string, optional): Filter by zone (Zone 1-5)
-
-**Response:**
-```json
-{
-  "success": true,
-  "departures": [
-    {
-      "departure_id": 1,
-      "zone": "Zone 1",
-      "day_of_week": "Monday",
-      "departure_time": "09:00",
-      "notes": "Daily service"
     }
   ]
 }
@@ -162,6 +142,7 @@ Create new shipment (STAFF, ADMIN).
   "destination_city": "New York",
   "weight_kg": 25.5,
   "pricing_tier": "B2C",
+  "service_level": "STANDARD",
   "has_home_delivery": false,
   "loyalty_token_id": null
 }
@@ -174,8 +155,12 @@ Create new shipment (STAFF, ADMIN).
   "shipment": {
     "shipment_id": 12345,
     "tracking_number": "ST-2024-123456",
+    "tracking_code": "ST-2024-123456",
     "pickup_code": "123456",
     "amount_due": 51.0,
+    "base_price": 51.0,
+    "final_price": 51.0,
+    "service_level": "STANDARD",
     "pickup_deadline_at": "2024-01-03T00:00:00.000Z"
   }
 }
@@ -228,7 +213,7 @@ Get detailed shipment information.
     "destination_city": "New York",
     "weight_kg": 25.5,
     "amount_due": 51.0,
-    "status": "DRIVER_ASSIGNED"
+    "status": "RECEIVED"
   }
 }
 ```
@@ -253,7 +238,7 @@ Get driver's assigned shipments (DRIVER).
       "pickup_code6": "123456",
       "customer_name": "John Doe",
       "customer_phone": "+1234567899",
-      "status": "DRIVER_ASSIGNED",
+      "status": "RECEIVED",
       "amount_due": 51.0,
       "pickup_deadline_at": "2024-01-03T00:00:00.000Z",
       "sla_remaining_ms": 172800000,
@@ -370,20 +355,15 @@ Update shipment status (DRIVER, RELAY, ADMIN).
   "path": "set-status",
   "token": "auth_token",
   "shipment_id": 12345,
-  "new_status": "LOADED"
+  "new_status": "RECEIVED"
 }
 ```
 
 **Valid Status Values:**
 - CREATED
-- PAID
-- DRIVER_ASSIGNED
-- LOADED
-- PICKED_UP
-- IN_TRANSIT
-- AT_RELAY_AVAILABLE
+- RECEIVED
 - DELIVERED
-- RELEASED
+- CANCELLED
 
 **Response:**
 ```json
@@ -433,12 +413,12 @@ Release package to customer (RELAY, ADMIN).
   "path": "relay-release",
   "token": "auth_token",
   "tracking_number": "ST-2024-123456",
-  "release_type": "RELEASED"
+  "release_type": "DELIVERED"
 }
 ```
 
 **Parameters:**
-- `release_type`: Either "DELIVERED" or "RELEASED"
+- `release_type`: Either "DELIVERED" or "RELEASED" (both are stored as DELIVERED)
 
 **Response:**
 ```json
@@ -467,7 +447,7 @@ Get list of overdue pickups (ADMIN).
       "tracking_number": "ST-2024-123456",
       "customer_name": "John Doe",
       "assigned_driver_user_id": 3,
-      "status": "DRIVER_ASSIGNED",
+      "status": "RECEIVED",
       "pickup_deadline_at": "2024-01-03T00:00:00.000Z",
       "hours_overdue": 12.5
     }
@@ -503,20 +483,18 @@ Assign or reassign driver to shipment (ADMIN).
 
 ---
 
-### Create Departure
-Create new departure schedule (ADMIN).
+### Update Service Level
+Update shipment service level and recompute ETA/pricing (ADMIN).
 
 **Endpoint:** `POST /`
 
 **Request Body:**
 ```json
 {
-  "path": "create-departure",
+  "path": "update-service-level",
   "token": "auth_token",
-  "zone": "Zone 1",
-  "day_of_week": "Monday",
-  "departure_time": "09:00",
-  "notes": "Daily service"
+  "shipment_id": 12345,
+  "service_level": "EXPRESS"
 }
 ```
 
@@ -524,32 +502,10 @@ Create new departure schedule (ADMIN).
 ```json
 {
   "success": true,
-  "departure_id": 13
-}
-```
-
----
-
-### Update Departure
-Update departure schedule (ADMIN).
-
-**Endpoint:** `POST /`
-
-**Request Body:**
-```json
-{
-  "path": "update-departure",
-  "token": "auth_token",
-  "departure_id": 13,
-  "is_active": false
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Departure schedule updated"
+  "service_level": "EXPRESS",
+  "final_price": 170.0,
+  "expected_delivery_at": "2024-01-07T00:00:00.000Z",
+  "worst_case_delivery_at": ""
 }
 ```
 
