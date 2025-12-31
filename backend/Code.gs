@@ -1138,11 +1138,15 @@ function handleLogin(data) {
   const usersData = usersSheet.getDataRange().getValues();
   
   // Find user by phone
-  const pinHash = hashPin(pin);
+  const normalizedPhone = normalizeId(phone);
+  const pinHash = hashPin(String(pin));
   let user = null;
   
   for (let i = 1; i < usersData.length; i++) {
-    if (usersData[i][2] === phone && usersData[i][3] === pinHash && usersData[i][5] === true) {
+    const storedPhone = normalizeId(usersData[i][2]);
+    const storedHash = normalizeId(usersData[i][3]);
+    const isActive = usersData[i][5] !== false && String(usersData[i][5]).toUpperCase() !== 'FALSE';
+    if (storedPhone === normalizedPhone && storedHash === pinHash && isActive) {
       user = {
         user_id: usersData[i][0],
         full_name: usersData[i][1],
