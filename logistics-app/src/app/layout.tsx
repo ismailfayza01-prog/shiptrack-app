@@ -1,21 +1,23 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Cairo, Inter } from "next/font/google";
 import "./globals.css";
-import { AuthProvider } from "@/contexts/AuthContext";
+import Navigation from "@/components/Navigation";
+import Footer from "@/components/Footer";
+import { LocaleProvider } from "@/lib/i18n";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+const cairo = Cairo({
+  variable: "--font-cairo",
+  subsets: ["arabic", "latin"],
 });
 
 export const metadata: Metadata = {
-  title: "Logistics App",
-  description: "Modern logistics management system",
+  title: "ShipTrack MVP",
+  description: "Premium shipment management, tracking, and fulfillment",
 };
 
 export default function RootLayout({
@@ -24,13 +26,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+    <html lang="fr">
+      <body className={`${inter.variable} ${cairo.variable} antialiased`}>
+        <LocaleProvider>
+          <div className="min-h-screen flex flex-col bg-[#111827] text-white">
+            <Navigation />
+            <main className="flex-1">{children}</main>
+            <Footer />
+          </div>
+        </LocaleProvider>
       </body>
     </html>
   );

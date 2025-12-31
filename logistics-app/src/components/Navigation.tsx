@@ -1,109 +1,87 @@
 'use client';
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
-import { User } from '@/types';
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useI18n } from "@/lib/i18n";
 
 const Navigation = () => {
-  const { user, isAuthenticated, logout } = useAuth();
   const pathname = usePathname();
-
-  const isActive = (path: string) => pathname === path;
-
-  const renderUserNavigation = () => {
-    if (!user) return null;
-
-    switch (user.role) {
-      case 'admin':
-        return (
-          <>
-            <NavItem href="/admin/shipments" label="Shipments" isActive={isActive} />
-            <NavItem href="/admin/drivers" label="Drivers" isActive={isActive} />
-            <NavItem href="/admin/users" label="Users" isActive={isActive} />
-            <NavItem href="/admin/pricing" label="Pricing" isActive={isActive} />
-          </>
-        );
-      case 'driver':
-        return (
-          <>
-            <NavItem href="/driver/assignments" label="My Assignments" isActive={isActive} />
-            <NavItem href="/driver/profile" label="Profile" isActive={isActive} />
-          </>
-        );
-      case 'staff':
-        return (
-          <>
-            <NavItem href="/staff/shipments" label="Shipments" isActive={isActive} />
-            <NavItem href="/staff/track" label="Track" isActive={isActive} />
-          </>
-        );
-      default:
-        return (
-          <>
-            <NavItem href="/shipments" label="My Shipments" isActive={isActive} />
-            <NavItem href="/track" label="Track" isActive={isActive} />
-          </>
-        );
-    }
-  };
+  const { locale, setLocale, t } = useI18n();
+  const links = [
+    { href: "/", label: t("nav.home") },
+    { href: "/pricing", label: t("nav.pricing") },
+    { href: "/track", label: t("nav.track") },
+    { href: "/staff", label: t("nav.staff") },
+    { href: "/driver", label: t("nav.driver") },
+    { href: "/relay", label: t("nav.relay") },
+    { href: "/admin", label: t("nav.admin") },
+  ];
 
   return (
-    <nav className="bg-gray-800 text-white p-4">
-      <div className="container mx-auto flex justify-between items-center">
-        <div className="flex items-center space-x-8">
-          <Link href="/" className="text-xl font-bold">
-            Logistics App
+    <header className="border-b border-white/10 bg-[#111827]">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-4">
+        <div className="flex items-center gap-3">
+          <Link href="/" className="text-xl font-semibold tracking-wide">
+            ShipTrack
           </Link>
-          {isAuthenticated && (
-            <div className="flex space-x-4">
-              {renderUserNavigation()}
-              <NavItem href="/profile" label="Profile" isActive={isActive} />
-            </div>
-          )}
+          <span className="rounded-full border border-emerald-500/40 px-2 py-0.5 text-xs font-semibold uppercase text-emerald-300">
+            {t("nav.mvp")}
+          </span>
         </div>
-        <div>
-          {isAuthenticated ? (
-            <div className="flex items-center space-x-4">
-              <span>Welcome, {user?.name}</span>
-              <button
-                onClick={logout}
-                className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded"
-              >
-                Logout
-              </button>
-            </div>
-          ) : (
-            <div className="space-x-4">
-              <Link href="/login" className="hover:underline">
-                Login
-              </Link>
-              <Link href="/register" className="hover:underline">
-                Register
-              </Link>
-            </div>
-          )}
+
+        <nav className="flex flex-wrap items-center gap-3 text-sm text-white/80">
+          {links.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className={`rounded-full px-3 py-1.5 transition ${
+                pathname === link.href
+                  ? "bg-emerald-500/20 text-emerald-200"
+                  : "hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </nav>
+
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 rounded-full border border-white/10 bg-[#0f172a] p-1 text-xs text-white/70">
+            <button
+              type="button"
+              onClick={() => setLocale("fr")}
+              className={`rounded-full px-2 py-1 transition ${
+                locale === "fr" ? "bg-emerald-500/20 text-emerald-200" : "text-white/60"
+              }`}
+            >
+              FR
+            </button>
+            <button
+              type="button"
+              onClick={() => setLocale("ar")}
+              className={`rounded-full px-2 py-1 transition ${
+                locale === "ar" ? "bg-emerald-500/20 text-emerald-200" : "text-white/60"
+              }`}
+            >
+              AR
+            </button>
+          </div>
+          <Link
+            href="/login"
+            className="rounded-full border border-white/15 px-4 py-2 text-sm text-white/80 transition hover:border-white/40 hover:text-white"
+          >
+            {t("nav.portal")}
+          </Link>
+          <Link
+            href="/staff"
+            className="rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400"
+          >
+            {t("nav.staffAccess")}
+          </Link>
         </div>
       </div>
-    </nav>
+    </header>
   );
 };
-
-interface NavItemProps {
-  href: string;
-  label: string;
-  isActive: (path: string) => boolean;
-}
-
-const NavItem = ({ href, label, isActive }: NavItemProps) => (
-  <Link
-    href={href}
-    className={`px-3 py-2 rounded-md ${
-      isActive(href) ? 'bg-gray-700' : 'hover:bg-gray-700'
-    } transition-colors`}
-  >
-    {label}
-  </Link>
-);
 
 export default Navigation;
