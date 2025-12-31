@@ -52,10 +52,7 @@ const matchByDigits = (candidate: string, needleDigits: string) => {
   return candidateDigits === needleDigits;
 };
 
-const findUserByPhone = async (
-  supabaseAdmin: ReturnType<typeof createClient>,
-  phone: string
-) => {
+const findUserByPhone = async (supabaseAdmin: any, phone: string) => {
   const variants = buildPhoneVariants(phone);
   for (const variant of variants) {
     const { data } = await supabaseAdmin
@@ -89,10 +86,7 @@ const findUserByPhone = async (
   );
 };
 
-const findAuthUserByEmail = async (
-  supabaseAdmin: ReturnType<typeof createClient>,
-  email: string
-) => {
+const findAuthUserByEmail = async (supabaseAdmin: any, email: string) => {
   const { data } = await supabaseAdmin.auth.admin.listUsers({
     page: 1,
     perPage: 200,
