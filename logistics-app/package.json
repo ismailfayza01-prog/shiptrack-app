@@ -20,6 +20,9 @@
     "jsonwebtoken": "^9.0.2",
     "nodemailer": "^6.9.18"
   },
+  "overrides": {
+    "nodemailer": "^6.9.18"
+  },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
