@@ -91,7 +91,7 @@ const findAuthUserByEmail = async (supabaseAdmin: any, email: string) => {
     page: 1,
     perPage: 200,
   });
-  const users = data?.users || [];
+  const users = (data?.users || []) as Array<{ id?: string; email?: string | null }>;
   return users.find((user) => user.email === email) || null;
 };
 
